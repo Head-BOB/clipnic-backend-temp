@@ -330,6 +330,31 @@ async function getAllGlobalApprovedVideos() {
     return result.rows;
 }
 
+async function getSystemAuditAnomalies() {
+    log.debug(`Running system audit for anomalies`);
+    
+    const falseNegatives = await dbQuery(`
+        SELECT v.*, j.username, j.cpm_rate 
+        FROM videos v
+        JOIN scrape_jobs j ON v.job_id = j.id
+        WHERE v.is_eligible = true AND v.review_status != 'approved'
+        ORDER BY v.play_count DESC
+    `);
+    
+    const falsePositives = await dbQuery(`
+        SELECT v.*, j.username, j.cpm_rate 
+        FROM videos v
+        JOIN scrape_jobs j ON v.job_id = j.id
+        WHERE v.is_eligible = false AND v.review_status = 'approved'
+        ORDER BY v.play_count DESC
+    `);
+    
+    return {
+        falseNegatives: falseNegatives.rows,
+        falsePositives: falsePositives.rows
+    };
+}
+
 function getPool() { return pool; }
 
 module.exports = {
@@ -337,5 +362,6 @@ module.exports = {
     createJob, updateJobStatus, getJob,    getAllJobs,
     deleteJob,
     insertVideos, getVideosByJob, updateVideoReview,
-    getJobMetrics, getGlobalMetrics, getAllVideosForExport, getAllGlobalApprovedVideos
+    getJobMetrics, getGlobalMetrics, getAllVideosForExport, getAllGlobalApprovedVideos,
+    getSystemAuditAnomalies
 };

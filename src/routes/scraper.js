@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { createModuleLogger } = require('../logger');
-const { createJob, getJob, getAllJobs, deleteJob, getJobMetrics, getGlobalMetrics, getAllGlobalApprovedVideos } = require('../db/database');
+const { createJob, getJob, getAllJobs, deleteJob, getJobMetrics, getGlobalMetrics, getAllGlobalApprovedVideos, getSystemAuditAnomalies } = require('../db/database');
 const { startScrape, syncJob } = require('../scraper/apify');
 
 const log = createModuleLogger('API:SCRAPER');
@@ -127,6 +127,16 @@ router.get('/metrics/global', async (req, res) => {
         res.json({ metrics });
     } catch (err) {
         log.error(`GET /metrics/global error: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/audit/anomalies', async (req, res) => {
+    try {
+        const anomalies = await getSystemAuditAnomalies();
+        res.json(anomalies);
+    } catch (err) {
+        log.error(`GET /audit/anomalies error: ${err.message}`);
         res.status(500).json({ error: err.message });
     }
 });

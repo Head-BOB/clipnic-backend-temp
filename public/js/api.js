@@ -64,6 +64,10 @@ const API = {
         return this.get('/api/metrics/global');
     },
 
+    getAuditAnomalies() {
+        return this.get('/api/audit/anomalies');
+    },
+
     getLogs(source = 'app', level = 'all', lines = 100) {
         const endpoint = source === 'scraper' ? '/api/logs/scraper' : '/api/logs';
         const params = new URLSearchParams({ lines });

@@ -661,6 +661,78 @@ async function loadGlobalStats() {
 }
 
 // ============================================================
+// SYSTEM AUDIT TAB
+// ============================================================
+
+async function runSystemAudit() {
+    showToast('Running System Audit...', 'info');
+    document.getElementById('audit-fn-list').innerHTML = '<div class="empty-state"><p>Scanning...</p></div>';
+    document.getElementById('audit-fp-list').innerHTML = '<div class="empty-state"><p>Scanning...</p></div>';
+
+    try {
+        const data = await API.getAuditAnomalies();
+        
+        document.getElementById('audit-fn-count').innerText = data.falseNegatives.length;
+        document.getElementById('audit-fp-count').innerText = data.falsePositives.length;
+
+        renderAuditList(data.falseNegatives, 'audit-fn-list', 'approved');
+        renderAuditList(data.falsePositives, 'audit-fp-list', 'rejected');
+        
+        if(data.falseNegatives.length === 0 && data.falsePositives.length === 0) {
+            showToast('Audit clean! No review mistakes found.', 'success');
+        } else {
+            showToast(`Found ${data.falseNegatives.length + data.falsePositives.length} anomalies.`, 'warning');
+        }
+    } catch (err) {
+        showToast('Audit failed: ' + err.message, 'error');
+    }
+}
+
+function renderAuditList(videos, containerId, fixAction) {
+    const container = document.getElementById(containerId);
+    if (videos.length === 0) {
+        container.innerHTML = '<div class="empty-state"><p>Clean! No anomalies detected here.</p></div>';
+        return;
+    }
+
+    container.innerHTML = videos.map(v => {
+        const profit = v.is_eligible ? (Number(v.play_count) / 1000) * v.cpm_rate : 0;
+        const btnClass = fixAction === 'approved' ? 'btn-primary' : 'btn-outline';
+        const btnLabel = fixAction === 'approved' ? 'Approve Now' : 'Reject Now';
+
+        return `
+            <div class="video-card">
+                <div class="video-meta">
+                    <span class="video-date">@${v.username}</span>
+                    <span class="video-views">${fmtNum(v.play_count)} views</span>
+                    <span class="video-profit">$${profit.toFixed(2)}</span>
+                    <span class="badge badge-${v.is_eligible ? 'eligible' : 'ineligible'}">
+                        ${v.is_eligible ? 'Eligible' : 'Ineligible'}
+                    </span>
+                    <span class="badge badge-${v.review_status}">
+                        Current: ${v.review_status}
+                    </span>
+                </div>
+                <div class="video-actions">
+                    <a href="${v.web_video_url}" target="_blank" class="btn btn-outline btn-sm">View Post</a>
+                    <button class="btn ${btnClass} btn-sm" onclick="auditReviewVideo(${v.id}, '${fixAction}')">${btnLabel}</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function auditReviewVideo(videoId, status) {
+    try {
+        await API.reviewVideo(videoId, status);
+        showToast(`Video Fixed -> ${status}`, 'success');
+        await runSystemAudit(); // Refresh the lists!
+    } catch (err) {
+        showToast(`Fix failed: ${err.message}`, 'error');
+    }
+}
+
+// ============================================================
 // INIT
 // ============================================================
 
@@ -681,6 +753,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (tab.dataset.tab === 'logs') refreshLogs();
             if (tab.dataset.tab === 'scraper') loadPastJobs();
             if (tab.dataset.tab === 'stats') loadGlobalStats();
+            if (tab.dataset.tab === 'audit') runSystemAudit();
         });
     });
 
