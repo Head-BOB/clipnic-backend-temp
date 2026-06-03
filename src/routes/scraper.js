@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { createModuleLogger } = require('../logger');
-const { createJob, getJob, getAllJobs, deleteJob, getJobMetrics, getGlobalMetrics, getAllGlobalApprovedVideos, getSystemAuditAnomalies, filterExistingUrls } = require('../db/database');
+const { createJob, getJob, getAllJobs, deleteJob, getJobMetrics, getGlobalMetrics, getAllGlobalApprovedVideos, getAllGlobalVideos, getSystemAuditAnomalies, filterExistingUrls } = require('../db/database');
 const { startScrape, startUrlScrape, startAccountScrape, syncJob } = require('../scraper/apify');
 
 const log = createModuleLogger('API:SCRAPER');
@@ -275,6 +275,16 @@ router.get('/export/approved-videos-json', async (req, res) => {
         res.json({ videos });
     } catch (err) {
         log.error(`GET /export/approved-videos-json error: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/export/all-videos-json', async (req, res) => {
+    try {
+        const videos = await getAllGlobalVideos();
+        res.json({ videos });
+    } catch (err) {
+        log.error(`GET /export/all-videos-json error: ${err.message}`);
         res.status(500).json({ error: err.message });
     }
 });

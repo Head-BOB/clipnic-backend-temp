@@ -345,6 +345,16 @@ async function getAllGlobalApprovedVideos() {
     return result.rows;
 }
 
+async function getAllGlobalVideos() {
+    const result = await dbQuery(`
+        SELECT v.*, j.username, j.cpm_rate 
+        FROM videos v
+        JOIN scrape_jobs j ON v.job_id = j.id
+        ORDER BY v.play_count DESC
+    `);
+    return result.rows;
+}
+
 async function getSystemAuditAnomalies() {
     log.debug(`Running system audit for anomalies`);
     
@@ -411,5 +421,6 @@ module.exports = {
     deleteJob,
     insertVideos, getVideosByJob, updateVideoReview,
     getJobMetrics, getGlobalMetrics, getAllVideosForExport, getAllGlobalApprovedVideos,
+    getAllGlobalVideos,
     getSystemAuditAnomalies, deleteVideo, filterExistingUrls
 };

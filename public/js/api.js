@@ -84,6 +84,10 @@ const API = {
         return this.get('/api/export/approved-videos-json');
     },
 
+    getGlobalAllVideos() {
+        return this.get('/api/export/all-videos-json');
+    },
+
     getLogs(source = 'app', level = 'all', lines = 100) {
         const endpoint = source === 'scraper' ? '/api/logs/scraper' : '/api/logs';
         const params = new URLSearchParams({ lines });

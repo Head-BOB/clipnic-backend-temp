@@ -573,9 +573,6 @@ async function exportPDF() {
                 <!-- Header -->
                 <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #1a1a1a; padding-bottom: 20px; margin-bottom: 30px; position: relative; z-index: 1;">
                     <div style="display: flex; align-items: center; gap: 12px;">
-                        <div style="width: 36px; height: 36px; background-color: #000000; border-radius: 10px; display: flex; align-items: center; justify-content: center; padding: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                            <div style="color: white; font-weight: bold; font-size: 10px;">CLIPNIC</div>
-                        </div>
                         <div>
                             <div style="font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: #000; line-height: 1;">CLIPNIC</div>
                             <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; color: #666; font-weight: 700; margin-top: 3px;">Campaign Analysis Report</div>
@@ -678,31 +675,53 @@ function exportGlobalURLs() {
     showToast('Downloading Approved URLs...', 'info');
 }
 
-async function exportGlobalPDF() {
-    showToast('Generating Global PDF report...', 'info');
-    const btn = document.querySelector('#content-stats .btn-primary');
-    if (btn) btn.disabled = true;
+async function exportGlobalPDF(type = 'approved') {
+    showToast(`Generating ${type === 'all' ? 'All Videos' : 'Approved'} PDF report...`, 'info');
+    
+    // Disable all primary buttons in stats to prevent spam
+    const btns = document.querySelectorAll('#content-stats .btn-primary');
+    btns.forEach(btn => btn.disabled = true);
 
     try {
         const { metrics } = await API.getGlobalMetrics();
-        const { videos } = await API.getGlobalApprovedVideos();
+        let videos = [];
+        let reportSubtitle = '';
+        
+        if (type === 'all') {
+            const res = await API.getGlobalAllVideos();
+            videos = res.videos || [];
+            reportSubtitle = 'ALL VIDEOS';
+        } else {
+            const res = await API.getGlobalApprovedVideos();
+            videos = res.videos || [];
+            reportSubtitle = 'ALL APPROVED VIDEOS';
+        }
 
         const campaignTitle = `Global Platform Report`;
         
-        const totalViewsCount = videos.reduce((acc, sub) => acc + Number(sub.play_count || 0), 0);
-        const qCount = videos.length;
+        const targetSubs = videos;
+
+        const totalViewsCount = targetSubs.reduce((acc, sub) => acc + Number(sub.play_count || 0), 0);
         
-        const totalSpentSum = videos.reduce((acc, sub) => {
-            const subCost = ((Number(sub.play_count || 0) / 1000) * (sub.cpm_rate || 4.0));
+        // Only count qualified for stats overview
+        const qCount = targetSubs.filter(sub => sub.review_status === 'approved' && sub.is_eligible).length;
+        
+        const totalSpentSum = targetSubs.reduce((acc, sub) => {
+            const isQual = sub.review_status === 'approved' && sub.is_eligible;
+            const subCost = isQual ? ((Number(sub.play_count || 0) / 1000) * (sub.cpm_rate || 4.0)) : 0;
             return acc + subCost;
         }, 0);
 
-        const rowsHtml = videos.map((sub, idx) => {
+        const rowsHtml = targetSubs.map((sub, idx) => {
+            const isQual = sub.review_status === 'approved' && sub.is_eligible;
             const cpmRate = sub.cpm_rate || 4.0;
-            const subCost = ((Number(sub.play_count || 0) / 1000) * cpmRate);
+            const subCost = isQual ? ((Number(sub.play_count || 0) / 1000) * cpmRate) : 0;
             const platform = sub.web_video_url.includes('instagram') ? 'INSTAGRAM' : 
                              sub.web_video_url.includes('youtube') ? 'YOUTUBE' : 'TIKTOK';
             
+            const statusColor = isQual ? '#0066cc' : (sub.review_status === 'rejected' || !sub.is_eligible ? '#f43f5e' : '#888');
+            const statusText = isQual ? 'Qualified' : (sub.review_status === 'rejected' ? 'Rejected' : (!sub.is_eligible ? 'Ineligible' : 'Pending'));
+
             return `
                 <tr>
                     <td style="padding: 12px; border-bottom: 1px solid #eee; font-size: 11px;">${idx + 1}</td>
@@ -712,7 +731,7 @@ async function exportGlobalPDF() {
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee; font-size: 11px; font-weight: bold; text-align: right;">${Number(sub.play_count || 0).toLocaleString()}</td>
                     <td style="padding: 12px; border-bottom: 1px solid #eee; font-size: 11px; font-weight: bold; text-align: right; color: #111;">$${subCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td style="padding: 12px; border-bottom: 1px solid #eee; font-size: 11px; text-align: right; font-weight: bold; color: #0066cc; text-transform: uppercase; letter-spacing: 0.5px;">Qualified</td>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee; font-size: 11px; text-align: right; font-weight: bold; color: ${statusColor}; text-transform: uppercase; letter-spacing: 0.5px;">${statusText}</td>
                 </tr>
             `;
         }).join('');
@@ -724,9 +743,6 @@ async function exportGlobalPDF() {
                 <!-- Header -->
                 <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #1a1a1a; padding-bottom: 20px; margin-bottom: 30px; position: relative; z-index: 1;">
                     <div style="display: flex; align-items: center; gap: 12px;">
-                        <div style="width: 36px; height: 36px; background-color: #000000; border-radius: 10px; display: flex; align-items: center; justify-content: center; padding: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                            <div style="color: white; font-weight: bold; font-size: 10px;">CLIPNIC</div>
-                        </div>
                         <div>
                             <div style="font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: #000; line-height: 1;">CLIPNIC</div>
                             <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; color: #666; font-weight: 700; margin-top: 3px;">Global Platform Report</div>
@@ -743,13 +759,13 @@ async function exportGlobalPDF() {
                 <!-- Metrics & Details -->
                 <div style="position: relative; z-index: 1;">
                     <div style="font-size: 28px; font-weight: 800; margin-top: 20px; margin-bottom: 5px; color: #111;">${campaignTitle}</div>
-                    <div style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Report Type: ALL APPROVED VIDEOS</div>
+                    <div style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Report Type: ${reportSubtitle}</div>
                     <div style="font-size: 11px; color: #888; margin-top: 4px;">Generated on ${new Date().toLocaleDateString(undefined, { dateStyle: 'long' })}</div>
 
                     <div style="display: flex; gap: 15px; margin-top: 30px; margin-bottom: 40px; background: #f9f9f9; padding: 20px; border-radius: 12px; border: 1px solid #eee;">
                         <div style="flex: 1; min-width: 0;">
                             <h4 style="margin: 0 0 5px 0; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #888;">Report Entries</h4>
-                            <p style="margin: 0; font-size: 15px; font-weight: bold; color: #111;">${videos.length}</p>
+                            <p style="margin: 0; font-size: 15px; font-weight: bold; color: #111;">${targetSubs.length}</p>
                         </div>
                         <div style="flex: 1; min-width: 0;">
                             <h4 style="margin: 0 0 5px 0; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #888;">Aggregate Reach</h4>
@@ -806,7 +822,7 @@ async function exportGlobalPDF() {
 
         const opt = {
             margin:       10,
-            filename:     `clipnic_global_report.pdf`,
+            filename:     `clipnic_global_report_${type}.pdf`,
             enableLinks:  true,
             image:        { type: 'jpeg', quality: 0.98 },
             html2canvas:  { scale: 2, useCORS: true },
@@ -819,7 +835,7 @@ async function exportGlobalPDF() {
         showToast(`PDF generation failed: ${err.message}`, 'error');
         console.error(err);
     } finally {
-        if (btn) btn.disabled = false;
+        btns.forEach(btn => btn.disabled = false);
     }
 }
 
