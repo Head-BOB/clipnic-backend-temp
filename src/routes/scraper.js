@@ -269,4 +269,14 @@ router.get('/export/approved-csv', async (req, res) => {
     }
 });
 
+router.get('/export/approved-videos-json', async (req, res) => {
+    try {
+        const videos = await getAllGlobalApprovedVideos();
+        res.json({ videos });
+    } catch (err) {
+        log.error(`GET /export/approved-videos-json error: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

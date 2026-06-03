@@ -678,6 +678,151 @@ function exportGlobalURLs() {
     showToast('Downloading Approved URLs...', 'info');
 }
 
+async function exportGlobalPDF() {
+    showToast('Generating Global PDF report...', 'info');
+    const btn = document.querySelector('#content-stats .btn-primary');
+    if (btn) btn.disabled = true;
+
+    try {
+        const { metrics } = await API.getGlobalMetrics();
+        const { videos } = await API.getGlobalApprovedVideos();
+
+        const campaignTitle = `Global Platform Report`;
+        
+        const totalViewsCount = videos.reduce((acc, sub) => acc + Number(sub.play_count || 0), 0);
+        const qCount = videos.length;
+        
+        const totalSpentSum = videos.reduce((acc, sub) => {
+            const subCost = ((Number(sub.play_count || 0) / 1000) * (sub.cpm_rate || 4.0));
+            return acc + subCost;
+        }, 0);
+
+        const rowsHtml = videos.map((sub, idx) => {
+            const cpmRate = sub.cpm_rate || 4.0;
+            const subCost = ((Number(sub.play_count || 0) / 1000) * cpmRate);
+            const platform = sub.web_video_url.includes('instagram') ? 'INSTAGRAM' : 
+                             sub.web_video_url.includes('youtube') ? 'YOUTUBE' : 'TIKTOK';
+            
+            return `
+                <tr>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee; font-size: 11px;">${idx + 1}</td>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee; font-size: 11px; text-transform: uppercase; font-weight: bold; color: #555;">${platform}</td>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee; font-size: 11px; word-break: break-all; font-family: monospace; color: #0066cc;">
+                        <a href="${sub.web_video_url}" target="_blank" style="color: #0066cc; text-decoration: none; display: inline-block;">${sub.web_video_url}</a>
+                    </td>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee; font-size: 11px; font-weight: bold; text-align: right;">${Number(sub.play_count || 0).toLocaleString()}</td>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee; font-size: 11px; font-weight: bold; text-align: right; color: #111;">$${subCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee; font-size: 11px; text-align: right; font-weight: bold; color: #0066cc; text-transform: uppercase; letter-spacing: 0.5px;">Qualified</td>
+                </tr>
+            `;
+        }).join('');
+
+        const element = document.createElement('div');
+        element.innerHTML = `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 40px; color: #333; position: relative; background: #ffffff; min-height: 277mm; box-sizing: border-box;">
+                
+                <!-- Header -->
+                <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #1a1a1a; padding-bottom: 20px; margin-bottom: 30px; position: relative; z-index: 1;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 36px; height: 36px; background-color: #000000; border-radius: 10px; display: flex; align-items: center; justify-content: center; padding: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                            <div style="color: white; font-weight: bold; font-size: 10px;">CLIPNIC</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: #000; line-height: 1;">CLIPNIC</div>
+                            <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; color: #666; font-weight: 700; margin-top: 3px;">Global Platform Report</div>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 12px; font-weight: 800; color: #000;">
+                            <a href="https://clipnic.com" target="_blank" style="color: inherit; text-decoration: none;">clipnic.com</a>
+                        </div>
+                        <div style="font-size: 9px; color: #888; font-weight: 500; margin-top: 2px;">SECURE DIGITAL REPORT</div>
+                    </div>
+                </div>
+
+                <!-- Metrics & Details -->
+                <div style="position: relative; z-index: 1;">
+                    <div style="font-size: 28px; font-weight: 800; margin-top: 20px; margin-bottom: 5px; color: #111;">${campaignTitle}</div>
+                    <div style="font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Report Type: ALL APPROVED VIDEOS</div>
+                    <div style="font-size: 11px; color: #888; margin-top: 4px;">Generated on ${new Date().toLocaleDateString(undefined, { dateStyle: 'long' })}</div>
+
+                    <div style="display: flex; gap: 15px; margin-top: 30px; margin-bottom: 40px; background: #f9f9f9; padding: 20px; border-radius: 12px; border: 1px solid #eee;">
+                        <div style="flex: 1; min-width: 0;">
+                            <h4 style="margin: 0 0 5px 0; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #888;">Report Entries</h4>
+                            <p style="margin: 0; font-size: 15px; font-weight: bold; color: #111;">${videos.length}</p>
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <h4 style="margin: 0 0 5px 0; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #888;">Aggregate Reach</h4>
+                            <p style="margin: 0; font-size: 15px; font-weight: bold; color: #111;">${totalViewsCount.toLocaleString()}</p>
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <h4 style="margin: 0 0 5px 0; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #888;">Qualified Count</h4>
+                            <p style="margin: 0; font-size: 15px; font-weight: bold; color: #111;">${qCount}</p>
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <h4 style="margin: 0 0 5px 0; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #888;">Total Budget Spent</h4>
+                            <p style="margin: 0; font-size: 15px; font-weight: bold; color: #10b981;">$${totalSpentSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        </div>
+                    </div>
+
+                    <!-- TABLE WRAPPER WITH CENTERED WATERMARK -->
+                    <div style="position: relative; width: 100%; min-height: 400px; padding-bottom: 60px;">
+                        
+                        <!-- Watermark overlay perfectly centered inside the table wrapper -->
+                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-25deg); text-align: center; pointer-events: none; z-index: 0; opacity: 0.05; display: flex; flex-direction: column; align-items: center; justify-content: center; user-select: none;">
+                            <div style="font-size: 68px; font-weight: 900; letter-spacing: 10px; color: #000; text-transform: uppercase; line-height: 1;">CLIPNIC</div>
+                            <div style="font-size: 24px; font-weight: bold; letter-spacing: 5px; color: #000; margin-top: 10px;">clipnic.com</div>
+                        </div>
+
+                        <!-- Table -->
+                        <table style="width: 100%; border-collapse: collapse; position: relative; z-index: 1;">
+                            <thead>
+                                <tr>
+                                    <th style="background: #1a1a1a; color: #fff; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; padding: 12px; text-align: left; width: 5%;">#</th>
+                                    <th style="background: #1a1a1a; color: #fff; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; padding: 12px; text-align: left; width: 12%;">Platform</th>
+                                    <th style="background: #1a1a1a; color: #fff; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; padding: 12px; text-align: left; width: 40%;">URL</th>
+                                    <th style="background: #1a1a1a; color: #fff; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; padding: 12px; text-align: right; width: 13%;">Views</th>
+                                    <th style="background: #1a1a1a; color: #fff; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; padding: 12px; text-align: right; width: 15%;">Spent</th>
+                                    <th style="background: #1a1a1a; color: #fff; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; padding: 12px; text-align: right; width: 15%;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rowsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div style="position: absolute; bottom: 30px; left: 40px; right: 40px; border-top: 1px solid #eee; padding-top: 15px; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #888; font-weight: 500; z-index: 1;">
+                    <div>&copy; ${new Date().getFullYear()} Clipnic. All rights reserved.</div>
+                    <div style="display: flex; gap: 15px;">
+                        <span>Website: <a href="https://clipnic.com" target="_blank" style="color: #666; text-decoration: underline;">clipnic.com</a></span>
+                        <span>Support: <a href="mailto:support@clipnic.com" style="color: #666; text-decoration: underline;">support@clipnic.com</a></span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const opt = {
+            margin:       10,
+            filename:     `clipnic_global_report.pdf`,
+            enableLinks:  true,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf().set(opt).from(element).save();
+        showToast('Global PDF downloaded successfully!', 'success');
+    } catch (err) {
+        showToast(`PDF generation failed: ${err.message}`, 'error');
+        console.error(err);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
 // ============================================================
 // LOGS TAB
 // ============================================================
