@@ -28,8 +28,8 @@ function initDatabase() {
         global.__dbPool = new Pool({
             connectionString,
             ssl: { rejectUnauthorized: false },
-            max: 2, // Extremely low max to respect Supabase 15 connection limit
-            idleTimeoutMillis: 1000, // Close idle connections almost instantly
+            max: 1, // Max 1 connection per Vercel lambda (Supabase limit is 15)
+            idleTimeoutMillis: 1000, 
             connectionTimeoutMillis: 10000,
             allowExitOnIdle: true
         });
@@ -47,10 +47,42 @@ function initDatabase() {
     return pool;
 }
 
+// Wrapper to automatically retry queries if EMAXCONNSESSION is hit
+async function dbQuery(sql, params = [], retries = 5) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await pool.query(sql, params);
+        } catch (err) {
+            if (err.message && err.message.includes('EMAXCONNSESSION') && i < retries - 1) {
+                log.warn(`Database connection limit hit (EMAXCONNSESSION). Retrying in 1s... (${i+1}/${retries})`);
+                await new Promise(r => setTimeout(r, 1000 + Math.random() * 500)); // Jitter
+            } else {
+                throw err;
+            }
+        }
+    }
+}
+
+// Wrapper to automatically retry connections for transactions
+async function dbConnect(retries = 5) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await pool.connect();
+        } catch (err) {
+            if (err.message && err.message.includes('EMAXCONNSESSION') && i < retries - 1) {
+                log.warn(`Database connection limit hit (EMAXCONNSESSION) on connect. Retrying in 1s... (${i+1}/${retries})`);
+                await new Promise(r => setTimeout(r, 1000 + Math.random() * 500));
+            } else {
+                throw err;
+            }
+        }
+    }
+}
+
 async function createTables() {
     log.info('Creating tables if not exist...');
 
-    await pool.query(`
+    await dbQuery(`
         CREATE TABLE IF NOT EXISTS scrape_jobs (
             id SERIAL PRIMARY KEY,
             username TEXT NOT NULL,
@@ -98,10 +130,10 @@ async function createTables() {
     `);
 
     // Create indexes (IF NOT EXISTS for safety)
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_videos_job_id ON videos(job_id)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_videos_review_status ON videos(review_status)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_videos_play_count ON videos(play_count)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_scrape_jobs_status ON scrape_jobs(status)`);
+    await dbQuery(`CREATE INDEX IF NOT EXISTS idx_videos_job_id ON videos(job_id)`);
+    await dbQuery(`CREATE INDEX IF NOT EXISTS idx_videos_review_status ON videos(review_status)`);
+    await dbQuery(`CREATE INDEX IF NOT EXISTS idx_videos_play_count ON videos(play_count)`);
+    await dbQuery(`CREATE INDEX IF NOT EXISTS idx_scrape_jobs_status ON scrape_jobs(status)`);
 
     log.info('All tables and indexes created/verified');
 }
@@ -110,7 +142,7 @@ async function createTables() {
 
 async function createJob(username, afterDate, cpmRate) {
     log.info(`Creating scrape job: username=${username}, afterDate=${afterDate}, cpmRate=${cpmRate}`);
-    const result = await pool.query(
+    const result = await dbQuery(
         `INSERT INTO scrape_jobs (username, after_date, cpm_rate, status) VALUES ($1, $2, $3, 'pending') RETURNING id`,
         [username, afterDate, cpmRate]
     );
@@ -133,21 +165,21 @@ async function updateJobStatus(jobId, status, extra = {}) {
     if (status === 'completed' || status === 'failed') { sets.push('completed_at = NOW()'); }
 
     params.push(jobId);
-    await pool.query(`UPDATE scrape_jobs SET ${sets.join(', ')} WHERE id = $${paramIdx}`, params);
+    await dbQuery(`UPDATE scrape_jobs SET ${sets.join(', ')} WHERE id = $${paramIdx}`, params);
 }
 
 async function getJob(jobId) {
-    const result = await pool.query('SELECT * FROM scrape_jobs WHERE id = $1', [jobId]);
+    const result = await dbQuery('SELECT * FROM scrape_jobs WHERE id = $1', [jobId]);
     return result.rows[0] || null;
 }
 
 async function deleteJob(jobId) {
     log.info(`Deleting job ${jobId} and its cascaded videos`);
-    await pool.query('DELETE FROM scrape_jobs WHERE id = $1', [jobId]);
+    await dbQuery('DELETE FROM scrape_jobs WHERE id = $1', [jobId]);
 }
 
 async function getAllJobs() {
-    const result = await pool.query('SELECT * FROM scrape_jobs ORDER BY created_at DESC');
+    const result = await dbQuery('SELECT * FROM scrape_jobs ORDER BY created_at DESC');
     return result.rows;
 }
 
@@ -158,7 +190,7 @@ async function insertVideos(jobId, videos) {
     const startTime = Date.now();
     let inserted = 0;
 
-    const client = await pool.connect();
+    const client = await dbConnect();
     try {
         await client.query('BEGIN');
 
@@ -213,11 +245,11 @@ async function getVideosByJob(jobId, page = 1, limit = 50, filter = 'all') {
     else if (filter === 'approved') { whereClause += ` AND review_status = 'approved'`; }
     else if (filter === 'rejected') { whereClause += ` AND review_status = 'rejected'`; }
 
-    const countResult = await pool.query(`SELECT COUNT(*) as count FROM videos ${whereClause}`, params);
+    const countResult = await dbQuery(`SELECT COUNT(*) as count FROM videos ${whereClause}`, params);
     const total = parseInt(countResult.rows[0].count);
 
     params.push(limit, offset);
-    const videoResult = await pool.query(
+    const videoResult = await dbQuery(
         `SELECT * FROM videos ${whereClause} ORDER BY play_count DESC LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
         params
     );
@@ -227,7 +259,7 @@ async function getVideosByJob(jobId, page = 1, limit = 50, filter = 'all') {
 
 async function updateVideoReview(videoId, status, notes = '') {
     log.info(`Reviewing video ${videoId}: status=${status}, notes=${notes}`);
-    await pool.query(
+    await dbQuery(
         `UPDATE videos SET review_status = $1, review_notes = $2, reviewed_at = NOW() WHERE id = $3`,
         [status, notes, videoId]
     );
@@ -236,7 +268,7 @@ async function updateVideoReview(videoId, status, notes = '') {
 async function getJobMetrics(jobId) {
     log.debug(`Calculating metrics for job ${jobId}`);
 
-    const result = await pool.query(`
+    const result = await dbQuery(`
         SELECT
             COUNT(*)::int as total_videos,
             COALESCE(SUM(play_count), 0)::bigint as total_views,
