@@ -194,6 +194,11 @@ async function insertVideos(jobId, videos) {
     try {
         await client.query('BEGIN');
 
+        // Check if this job is for external URLs (which are manually curated and should be auto-approved)
+        const jobResult = await client.query('SELECT username FROM scrape_jobs WHERE id = $1', [jobId]);
+        const isExternal = jobResult.rows.length > 0 && jobResult.rows[0].username.startsWith('External URLs');
+        const defaultStatus = isExternal ? 'approved' : 'pending';
+
         for (const v of videos) {
             const isEligible = (v.playCount || 0) >= 1000;
             const result = await client.query(
@@ -202,8 +207,8 @@ async function insertVideos(jobId, videos) {
                     digg_count, share_count, comment_count, collect_count,
                     duration, cover_url, created_time_iso,
                     author_name, author_nickname, author_avatar, author_fans,
-                    is_eligible
-                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+                    is_eligible, review_status
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
                 ON CONFLICT (job_id, tiktok_id) DO NOTHING`,
                 [
                     jobId, v.id || '', v.webVideoUrl || '', (v.text || '').substring(0, 500),
@@ -211,7 +216,7 @@ async function insertVideos(jobId, videos) {
                     v.commentCount || 0, v.collectCount || 0, v.duration || 0,
                     v.coverUrl || '', v.createTimeISO || '',
                     v.authorName || '', v.authorNickname || '',
-                    v.authorAvatar || '', v.authorFans || 0, isEligible
+                    v.authorAvatar || '', v.authorFans || 0, isEligible, defaultStatus
                 ]
             );
             if (result.rowCount > 0) inserted++;
