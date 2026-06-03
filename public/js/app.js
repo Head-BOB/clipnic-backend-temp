@@ -118,9 +118,9 @@ function updateStatusUI(data) {
 
     const statusMap = {
         pending: 'Queued...',
-        scraping: `Scraping @${job.username} from TikTok...`,
-        processing: 'Processing & storing videos...',
-        completed: `Done! ${job.totalVideos} videos found.`,
+        scraping: `Scraping @${job.username}... (${job.totalVideos || 0} videos found so far)`,
+        processing: `Saving to database... (${job.totalVideos || 0} videos)`,
+        completed: `Done! ${job.totalVideos} videos stored.`,
         failed: `Failed: ${job.errorMessage || 'Unknown error'}`
     };
 

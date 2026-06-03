@@ -52,7 +52,7 @@ async function scrapeProfile(username, afterDate, jobId, apiToken) {
         await updateJobStatus(jobId, 'scraping', { apifyRunId: runId });
 
         // Step 2: Poll until complete
-        const runResult = await pollRunCompletion(runId, apiToken);
+        const runResult = await pollRunCompletion(runId, apiToken, jobId);
         log.info(`Apify run completed. Dataset ID: ${runResult.datasetId}, Status: ${runResult.status}`);
 
         if (runResult.status !== 'SUCCEEDED') {
@@ -65,7 +65,7 @@ async function scrapeProfile(username, afterDate, jobId, apiToken) {
         await updateJobStatus(jobId, 'processing', { apifyDatasetId: runResult.datasetId });
 
         // Step 3: Fetch dataset items in pages (handles 1000s of results)
-        const allItems = await fetchDatasetItems(runResult.datasetId, apiToken);
+        const allItems = await fetchDatasetItems(runResult.datasetId, apiToken, jobId);
         log.info(`Total raw items fetched from Apify: ${allItems.length}`);
 
         // Step 4: Filter by date and transform
@@ -92,6 +92,7 @@ async function scrapeProfile(username, afterDate, jobId, apiToken) {
             const inserted = await insertVideos(jobId, chunk);
             totalInserted += inserted;
             log.info(`Chunk ${Math.floor(i / CHUNK_SIZE) + 1}: inserted ${inserted} videos (${totalInserted}/${filteredVideos.length} total)`);
+            await updateJobStatus(jobId, 'processing', { totalVideos: totalInserted });
         }
 
         await updateJobStatus(jobId, 'completed', { totalVideos: totalInserted });
@@ -161,7 +162,7 @@ async function startApifyRun(username, apiToken) {
  * Poll Apify run until it completes. Uses exponential backoff.
  * Initial poll at 3s, max 30s between polls, max 15 minutes total.
  */
-async function pollRunCompletion(runId, apiToken) {
+async function pollRunCompletion(runId, apiToken, jobId) {
     const url = `${APIFY_BASE_URL}/actor-runs/${runId}?token=${apiToken}`;
     const MAX_WAIT = 15 * 60 * 1000; // 15 minutes
     const startTime = Date.now();
@@ -195,6 +196,21 @@ async function pollRunCompletion(runId, apiToken) {
             statsPages: data.data.stats?.pagesLoaded
         });
 
+        // Report real-time video count to UI
+        if (datasetId && status === 'RUNNING') {
+            try {
+                const dsRes = await fetch(`${APIFY_BASE_URL}/datasets/${datasetId}?token=${apiToken}`);
+                if (dsRes.ok) {
+                    const dsData = await dsRes.json();
+                    if (dsData.data && dsData.data.itemCount) {
+                        await updateJobStatus(jobId, 'scraping', { totalVideos: dsData.data.itemCount });
+                    }
+                }
+            } catch (e) {
+                // Ignore errors here, just an optimistic update
+            }
+        }
+
         if (['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'].includes(status)) {
             return { status, datasetId, usage: data.data.usageTotalUsd };
         }
@@ -209,7 +225,7 @@ async function pollRunCompletion(runId, apiToken) {
  * Fetch all items from an Apify dataset with pagination.
  * Fetches 1000 items at a time to handle large profiles.
  */
-async function fetchDatasetItems(datasetId, apiToken) {
+async function fetchDatasetItems(datasetId, apiToken, jobId) {
     const allItems = [];
     let offset = 0;
     const PAGE_SIZE = 1000;
@@ -241,6 +257,7 @@ async function fetchDatasetItems(datasetId, apiToken) {
 
         allItems.push(...items);
         offset += items.length;
+        await updateJobStatus(jobId, 'processing', { totalVideos: allItems.length });
 
         // Safety valve: if we got less than PAGE_SIZE, we're done
         if (items.length < PAGE_SIZE) {
