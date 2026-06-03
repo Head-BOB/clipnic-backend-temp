@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { createModuleLogger } = require('../logger');
-const { createJob, getJob, getAllJobs, getJobMetrics } = require('../db/database');
+const { createJob, getJob, getAllJobs, deleteJob, getJobMetrics } = require('../db/database');
 const { startScrape, syncJob } = require('../scraper/apify');
 
 const log = createModuleLogger('API:SCRAPER');
@@ -103,6 +103,20 @@ router.get('/jobs', async (req, res) => {
         res.json({ jobs });
     } catch (err) {
         log.error(`GET /jobs error: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.delete('/scrape/:jobId', async (req, res) => {
+    try {
+        const jobId = parseInt(req.params.jobId);
+        const job = await getJob(jobId);
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+
+        await deleteJob(jobId);
+        res.json({ success: true, message: `Job #${jobId} deleted` });
+    } catch (err) {
+        log.error(`DELETE /scrape error: ${err.message}`);
         res.status(500).json({ error: err.message });
     }
 });

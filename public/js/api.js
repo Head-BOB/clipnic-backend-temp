@@ -14,6 +14,13 @@ const API = {
         return data;
     },
 
+    async del(url) {
+        const res = await fetch(url, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        return data;
+    },
+
     async get(url) {
         const res = await fetch(url);
         const data = await res.json();
@@ -35,6 +42,10 @@ const API = {
 
     getJobs() {
         return this.get('/api/jobs');
+    },
+
+    deleteJob(jobId) {
+        return this.del(`/api/scrape/${jobId}`);
     },
 
     getVideos(jobId, page = 1, limit = 50, filter = 'all') {

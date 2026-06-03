@@ -141,6 +141,11 @@ async function getJob(jobId) {
     return result.rows[0] || null;
 }
 
+async function deleteJob(jobId) {
+    log.info(`Deleting job ${jobId} and its cascaded videos`);
+    await pool.query('DELETE FROM scrape_jobs WHERE id = $1', [jobId]);
+}
+
 async function getAllJobs() {
     const result = await pool.query('SELECT * FROM scrape_jobs ORDER BY created_at DESC');
     return result.rows;
@@ -269,7 +274,8 @@ function getPool() { return pool; }
 
 module.exports = {
     initDatabase, createTables, getPool,
-    createJob, updateJobStatus, getJob, getAllJobs,
+    createJob, updateJobStatus, getJob,    getAllJobs,
+    deleteJob,
     insertVideos, getVideosByJob, updateVideoReview,
     getJobMetrics, getAllVideosForExport
 };

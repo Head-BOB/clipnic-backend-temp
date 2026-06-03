@@ -182,7 +182,12 @@ async function loadPastJobs() {
                     <h4>@${job.username}</h4>
                     <p>After ${fmtDate(job.after_date)} &middot; ${progressText} &middot; $${job.cpm_rate} CPM &middot; ${fmtDateTime(job.created_at)}</p>
                 </div>
-                <span class="badge badge-${job.status}">${job.status}</span>
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <span class="badge badge-${job.status}">${job.status}</span>
+                    <button class="btn btn-outline" style="padding:6px; border-color:var(--border-color); color:var(--text-muted);" onclick="deleteJob(event, ${job.id})" title="Delete Job">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                </div>
             </div>
             `;
         }).join('');
@@ -202,6 +207,28 @@ function viewJob(jobId) {
         document.getElementById('admin-job-select').value = jobId;
         loadJobForReview();
     });
+}
+
+async function deleteJob(e, jobId) {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to permanently delete this job and all its videos? This cannot be undone.')) return;
+    
+    try {
+        await API.deleteJob(jobId);
+        showToast('Job deleted successfully', 'success');
+        
+        // If the admin tab was viewing this job, reset it
+        const adminSelect = document.getElementById('admin-job-select');
+        if (adminSelect && parseInt(adminSelect.value) === jobId) {
+            adminSelect.value = "";
+            loadJobForReview();
+        }
+        
+        loadPastJobs();
+        loadAdminJobList();
+    } catch (err) {
+        showToast(`Failed to delete: ${err.message}`, 'error');
+    }
 }
 
 // ============================================================
