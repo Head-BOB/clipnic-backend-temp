@@ -1,126 +1,22 @@
 // ============================================================
 // Clipnic Campaign Scraper — Apify TikTok Scraper Integration
 // ============================================================
-// Handles communication with the Apify API to scrape TikTok
-// profiles. Designed for accounts with 1000s of videos:
-//   - Pagination via resultsPerPage
-//   - Polling with exponential backoff
-//   - Date filtering after retrieval
-//   - Chunked database insertion
-//   - Heavy logging at every step
-// ============================================================
 
 const { createModuleLogger } = require('../logger');
 const { updateJobStatus, insertVideos } = require('../db/database');
 
 const log = createModuleLogger('SCRAPER');
-
 const APIFY_BASE_URL = 'https://api.apify.com/v2';
 
-// Rate limiting: max 1 concurrent scrape, queue the rest
-let activeScrapes = 0;
-const MAX_CONCURRENT = 1;
-const scrapeQueue = [];
-
 /**
- * Main entry point: scrape a TikTok profile for videos after a given date.
- * Handles the full lifecycle: start run → poll → fetch → filter → store.
- *
- * @param {string} username - TikTok username (without @)
- * @param {string} afterDate - ISO date string, only videos after this date
- * @param {number} jobId - Database job ID
- * @param {string} apiToken - Apify API token
- * @returns {Promise<{success: boolean, videoCount: number, error?: string}>}
+ * Start the Apify run and instantly return
  */
-async function scrapeProfile(username, afterDate, jobId, apiToken) {
-    log.info(`=== SCRAPE REQUEST: @${username} after ${afterDate} (Job #${jobId}) ===`);
-
-    // Queue if too many concurrent scrapes
-    if (activeScrapes >= MAX_CONCURRENT) {
-        log.warn(`Max concurrent scrapes (${MAX_CONCURRENT}) reached. Queuing job #${jobId}...`);
-        await new Promise(resolve => scrapeQueue.push(resolve));
-    }
-
-    activeScrapes++;
-    log.info(`Active scrapes: ${activeScrapes}`);
-
-    try {
-        // Step 1: Start the Apify run
-        await updateJobStatus(jobId, 'scraping');
-        const runId = await startApifyRun(username, apiToken);
-        log.info(`Apify run started: runId=${runId}`);
-        await updateJobStatus(jobId, 'scraping', { apifyRunId: runId });
-
-        // Step 2: Poll until complete
-        const runResult = await pollRunCompletion(runId, apiToken, jobId);
-        log.info(`Apify run completed. Dataset ID: ${runResult.datasetId}, Status: ${runResult.status}`);
-
-        if (runResult.status !== 'SUCCEEDED') {
-            const errMsg = `Apify run failed with status: ${runResult.status}`;
-            log.error(errMsg);
-            await updateJobStatus(jobId, 'failed', { errorMessage: errMsg });
-            return { success: false, videoCount: 0, error: errMsg };
-        }
-
-        await updateJobStatus(jobId, 'processing', { apifyDatasetId: runResult.datasetId });
-
-        // Step 3: Fetch dataset items in pages (handles 1000s of results)
-        const allItems = await fetchDatasetItems(runResult.datasetId, apiToken, jobId);
-        log.info(`Total raw items fetched from Apify: ${allItems.length}`);
-
-        // Step 4: Filter by date and transform
-        const afterDateTs = new Date(afterDate).getTime();
-        const filteredVideos = allItems
-            .filter(item => {
-                // Skip error items from Apify
-                if (item.errorCode) {
-                    log.warn(`Skipping error item: ${item.errorCode} - ${item.error}`);
-                    return false;
-                }
-                const videoDate = new Date(item.createTimeISO).getTime();
-                return videoDate >= afterDateTs;
-            })
-            .map(transformVideo);
-
-        log.info(`Videos after date filter (>= ${afterDate}): ${filteredVideos.length}/${allItems.length}`);
-
-        // Step 5: Insert into database in chunks (prevent memory issues)
-        const CHUNK_SIZE = 200;
-        let totalInserted = 0;
-        for (let i = 0; i < filteredVideos.length; i += CHUNK_SIZE) {
-            const chunk = filteredVideos.slice(i, i + CHUNK_SIZE);
-            const inserted = await insertVideos(jobId, chunk);
-            totalInserted += inserted;
-            log.info(`Chunk ${Math.floor(i / CHUNK_SIZE) + 1}: inserted ${inserted} videos (${totalInserted}/${filteredVideos.length} total)`);
-            await updateJobStatus(jobId, 'processing', { totalVideos: totalInserted });
-        }
-
-        await updateJobStatus(jobId, 'completed', { totalVideos: totalInserted });
-        log.info(`=== SCRAPE COMPLETE: @${username} — ${totalInserted} videos stored ===`);
-
-        return { success: true, videoCount: totalInserted };
-
-    } catch (err) {
-        log.error(`Scrape failed for @${username}: ${err.message}`, { stack: err.stack });
-        await updateJobStatus(jobId, 'failed', { errorMessage: err.message });
-        return { success: false, videoCount: 0, error: err.message };
-    } finally {
-        activeScrapes--;
-        // Release next in queue
-        if (scrapeQueue.length > 0) {
-            const next = scrapeQueue.shift();
-            next();
-        }
-        log.info(`Active scrapes after cleanup: ${activeScrapes}`);
-    }
-}
-
-/**
- * Start an Apify actor run for the TikTok scraper
- */
-async function startApifyRun(username, apiToken) {
+async function startScrape(username, jobId, apiToken) {
+    log.info(`=== STARTING APIFY RUN: @${username} (Job #${jobId}) ===`);
+    
+    await updateJobStatus(jobId, 'scraping');
+    
     const url = `${APIFY_BASE_URL}/acts/clockworks~tiktok-scraper/runs?token=${apiToken}`;
-
     const input = {
         profiles: [username],
         resultsPerPage: 100,
@@ -136,9 +32,6 @@ async function startApifyRun(username, apiToken) {
         scrapeRelatedVideos: false
     };
 
-    log.info(`Starting Apify run for @${username}`, { url: url.replace(apiToken, '***'), input });
-
-    const startTime = Date.now();
     const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -147,139 +40,99 @@ async function startApifyRun(username, apiToken) {
 
     if (!response.ok) {
         const errorBody = await response.text();
-        log.error(`Apify start run failed: HTTP ${response.status}`, { body: errorBody });
-        throw new Error(`Apify API error: HTTP ${response.status} — ${errorBody}`);
+        log.error(`Apify start run failed: HTTP ${response.status}`);
+        await updateJobStatus(jobId, 'failed', { errorMessage: `Apify API Error: ${response.status}` });
+        throw new Error(`Apify API error: HTTP ${response.status}`);
     }
 
     const data = await response.json();
-    const elapsed = Date.now() - startTime;
-    log.info(`Apify run initiated in ${elapsed}ms`, { runId: data.data.id, actorId: data.data.actId });
-
-    return data.data.id;
+    const runId = data.data.id;
+    const datasetId = data.data.defaultDatasetId;
+    
+    log.info(`Apify run initiated`, { runId, datasetId });
+    await updateJobStatus(jobId, 'scraping', { apifyRunId: runId, apifyDatasetId: datasetId });
+    
+    return { success: true, runId, datasetId };
 }
 
 /**
- * Poll Apify run until it completes. Uses exponential backoff.
- * Initial poll at 3s, max 30s between polls, max 15 minutes total.
+ * Sync job state and stream dataset items from Apify to DB.
+ * Safe for serverless polling (runs in < 1 second).
  */
-async function pollRunCompletion(runId, apiToken, jobId) {
+async function syncJob(job, apiToken) {
+    if (!job.apify_run_id) throw new Error("Job missing apify_run_id");
+
+    const runId = job.apify_run_id;
+    const datasetId = job.apify_dataset_id;
+    
+    // 1. Check Run Status
     const url = `${APIFY_BASE_URL}/actor-runs/${runId}?token=${apiToken}`;
-    const MAX_WAIT = 15 * 60 * 1000; // 15 minutes
-    const startTime = Date.now();
-    let pollInterval = 3000; // start at 3s
-    let pollCount = 0;
+    const response = await fetch(url);
+    
+    if (!response.ok) {
+        throw new Error(`Failed to check run status: HTTP ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const status = data.data.status;
+    log.info(`Sync job #${job.id} — Apify Status: ${status}`);
 
-    while (true) {
-        pollCount++;
-        const elapsed = Date.now() - startTime;
+    // 2. Fetch new dataset items if they exist
+    let newVideosInserted = 0;
+    if (datasetId) {
+        const offset = job.apify_synced_count || 0;
+        // Fetch up to 500 items at a time to prevent Vercel timeout
+        const itemsUrl = `${APIFY_BASE_URL}/datasets/${datasetId}/items?token=${apiToken}&offset=${offset}&limit=500&format=json`;
+        
+        const dsRes = await fetch(itemsUrl);
+        if (dsRes.ok) {
+            const items = await dsRes.json();
+            
+            if (items.length > 0) {
+                log.info(`Fetched ${items.length} new items from dataset (offset ${offset})`);
+                
+                // Filter by date
+                const afterDateTs = new Date(job.after_date).getTime();
+                const filtered = items.filter(item => {
+                    if (item.errorCode) return false;
+                    return new Date(item.createTimeISO).getTime() >= afterDateTs;
+                }).map(transformVideo);
 
-        if (elapsed > MAX_WAIT) {
-            throw new Error(`Apify run timed out after ${MAX_WAIT / 1000}s`);
-        }
-
-        log.info(`Polling run status (attempt #${pollCount}, ${Math.round(elapsed / 1000)}s elapsed)...`);
-
-        const response = await fetch(url);
-        if (!response.ok) {
-            log.warn(`Poll request failed: HTTP ${response.status}, retrying...`);
-            await sleep(pollInterval);
-            continue;
-        }
-
-        const data = await response.json();
-        const status = data.data.status;
-        const datasetId = data.data.defaultDatasetId;
-
-        log.info(`Run status: ${status}`, {
-            datasetId,
-            usageTotalUsd: data.data.usageTotalUsd,
-            statsPages: data.data.stats?.pagesLoaded
-        });
-
-        // Report real-time video count to UI
-        if (datasetId && status === 'RUNNING') {
-            try {
-                const dsRes = await fetch(`${APIFY_BASE_URL}/datasets/${datasetId}?token=${apiToken}`);
-                if (dsRes.ok) {
-                    const dsData = await dsRes.json();
-                    if (dsData.data && dsData.data.itemCount) {
-                        await updateJobStatus(jobId, 'scraping', { totalVideos: dsData.data.itemCount });
-                    }
+                if (filtered.length > 0) {
+                    newVideosInserted = await insertVideos(job.id, filtered);
                 }
-            } catch (e) {
-                // Ignore errors here, just an optimistic update
+
+                // Update sync count so we don't fetch these again
+                const newTotal = (job.total_videos || 0) + newVideosInserted;
+                const newSyncCount = offset + items.length;
+                
+                await updateJobStatus(job.id, 'scraping', { 
+                    totalVideos: newTotal,
+                    apifySyncedCount: newSyncCount
+                });
             }
         }
-
-        if (['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'].includes(status)) {
-            return { status, datasetId, usage: data.data.usageTotalUsd };
-        }
-
-        // Exponential backoff: 3s → 5s → 8s → 13s → 20s → 30s (capped)
-        await sleep(pollInterval);
-        pollInterval = Math.min(pollInterval * 1.5, 30000);
-    }
-}
-
-/**
- * Fetch all items from an Apify dataset with pagination.
- * Fetches 1000 items at a time to handle large profiles.
- */
-async function fetchDatasetItems(datasetId, apiToken, jobId) {
-    const allItems = [];
-    let offset = 0;
-    const PAGE_SIZE = 1000;
-    let pageNum = 0;
-
-    while (true) {
-        pageNum++;
-        const url = `${APIFY_BASE_URL}/datasets/${datasetId}/items?token=${apiToken}&offset=${offset}&limit=${PAGE_SIZE}&format=json`;
-
-        log.info(`Fetching dataset page ${pageNum} (offset=${offset}, limit=${PAGE_SIZE})...`);
-        const startTime = Date.now();
-
-        const response = await fetch(url);
-        if (!response.ok) {
-            const body = await response.text();
-            log.error(`Dataset fetch failed: HTTP ${response.status}`, { body });
-            throw new Error(`Failed to fetch dataset: HTTP ${response.status}`);
-        }
-
-        const items = await response.json();
-        const elapsed = Date.now() - startTime;
-
-        log.info(`Dataset page ${pageNum}: got ${items.length} items in ${elapsed}ms`);
-
-        if (items.length === 0) {
-            log.info(`No more items, total fetched: ${allItems.length}`);
-            break;
-        }
-
-        allItems.push(...items);
-        offset += items.length;
-        await updateJobStatus(jobId, 'processing', { totalVideos: allItems.length });
-
-        // Safety valve: if we got less than PAGE_SIZE, we're done
-        if (items.length < PAGE_SIZE) {
-            log.info(`Last page (got ${items.length} < ${PAGE_SIZE}), total: ${allItems.length}`);
-            break;
-        }
-
-        // Small delay between pages to be kind to the free API
-        await sleep(500);
     }
 
-    return allItems;
+    // 3. Mark completed if finished
+    if (['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'].includes(status)) {
+        if (status === 'SUCCEEDED') {
+            await updateJobStatus(job.id, 'completed');
+            return { status: 'completed' };
+        } else {
+            await updateJobStatus(job.id, 'failed', { errorMessage: `Apify run ended with status: ${status}` });
+            return { status: 'failed' };
+        }
+    }
+
+    return { status: 'scraping' };
 }
 
-/**
- * Transform a raw Apify item into our standardized video object
- */
 function transformVideo(item) {
     return {
         id: item.id || '',
         webVideoUrl: item.webVideoUrl || '',
-        text: (item.text || '').substring(0, 500), // Cap description length
+        text: (item.text || '').substring(0, 500),
         playCount: item.playCount || 0,
         diggCount: item.diggCount || 0,
         shareCount: item.shareCount || 0,
@@ -295,8 +148,4 @@ function transformVideo(item) {
     };
 }
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-module.exports = { scrapeProfile };
+module.exports = { startScrape, syncJob };

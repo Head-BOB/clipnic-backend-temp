@@ -6,7 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { createModuleLogger } = require('../logger');
 const { createJob, getJob, getAllJobs, getJobMetrics } = require('../db/database');
-const { scrapeProfile } = require('../scraper/apify');
+const { startScrape, syncJob } = require('../scraper/apify');
 
 const log = createModuleLogger('API:SCRAPER');
 
@@ -38,13 +38,10 @@ router.post('/scrape', async (req, res) => {
 
         const jobId = await createJob(username, afterDate, cpmRate);
 
-        // Start scraping in background (don't await — return immediately)
-        scrapeProfile(username, afterDate, jobId, apiToken)
-            .then(result => log.info(`Background scrape completed for job #${jobId}`, result))
-            .catch(err => log.error(`Background scrape error for job #${jobId}: ${err.message}`));
-
+        // Start the apify run, wait for it, but return before it finishes scraping
+        const { runId } = await startScrape(username, jobId, apiToken);
         const elapsed = Date.now() - startTime;
-        log.info(`Scrape job #${jobId} queued in ${elapsed}ms`);
+        log.info(`Scrape job #${jobId} (Apify Run ${runId}) queued in ${elapsed}ms`);
 
         res.status(201).json({ success: true, jobId, message: `Scraping @${username} — this may take a few minutes.` });
     } catch (err) {
@@ -72,6 +69,30 @@ router.get('/scrape/:jobId/status', async (req, res) => {
         });
     } catch (err) {
         log.error(`GET /scrape/status error: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/scrape/:jobId/sync', async (req, res) => {
+    try {
+        const jobId = parseInt(req.params.jobId);
+        const job = await getJob(jobId);
+        if (!job) return res.status(404).json({ error: 'Job not found' });
+        
+        if (job.status === 'completed' || job.status === 'failed') {
+            return res.json({ status: job.status });
+        }
+
+        const apiToken = process.env.APIFY_API_TOKEN;
+        if (!apiToken || apiToken === 'your_apify_token_here') {
+            return res.status(500).json({ error: 'Apify API token not configured.' });
+        }
+
+        // Trigger sync
+        const result = await syncJob(job, apiToken);
+        res.json(result);
+    } catch (err) {
+        log.error(`GET /scrape/sync error: ${err.message}`);
         res.status(500).json({ error: err.message });
     }
 });

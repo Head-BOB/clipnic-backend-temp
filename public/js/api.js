@@ -29,6 +29,10 @@ const API = {
         return this.get(`/api/scrape/${jobId}/status`);
     },
 
+    syncJob(jobId) {
+        return this.get(`/api/scrape/${jobId}/sync`);
+    },
+
     getJobs() {
         return this.get('/api/jobs');
     },

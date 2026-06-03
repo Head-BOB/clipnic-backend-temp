@@ -101,6 +101,10 @@ function waitForJobCompletion(jobId) {
     return new Promise((resolve) => {
         let timer = setInterval(async () => {
             try {
+                // Poll the new /sync endpoint which actively fetches from Apify
+                const syncData = await API.syncJob(jobId);
+                
+                // Then get the updated status from DB to update UI
                 const data = await API.getJobStatus(jobId);
                 updateStatusUI(data);
 
@@ -160,10 +164,16 @@ async function loadPastJobs() {
             return;
         }
 
+        let hasActiveJobs = false;
+
         list.innerHTML = data.jobs.map(job => {
             let progressText = `${job.total_videos || 0} videos`;
             if (job.status === 'scraping' || job.status === 'processing') {
+                 hasActiveJobs = true;
                  progressText = `<span style="color:var(--text-main); font-weight:500;">${job.total_videos || 0} videos found so far...</span>`;
+                 
+                 // Trigger background sync to keep Vercel active if we just opened the page
+                 API.syncJob(job.id).catch(e => console.error('Background sync failed:', e));
             }
 
             return `

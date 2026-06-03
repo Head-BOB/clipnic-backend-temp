@@ -52,11 +52,15 @@ async function createTables() {
             total_videos INTEGER DEFAULT 0,
             apify_run_id TEXT,
             apify_dataset_id TEXT,
+            apify_synced_count INTEGER DEFAULT 0,
             error_message TEXT,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             completed_at TIMESTAMPTZ
         );
+
+        ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS apify_synced_count INTEGER DEFAULT 0;
+
 
         CREATE TABLE IF NOT EXISTS videos (
             id SERIAL PRIMARY KEY,
@@ -115,6 +119,7 @@ async function updateJobStatus(jobId, status, extra = {}) {
 
     if (extra.apifyRunId) { sets.push(`apify_run_id = $${paramIdx}`); params.push(extra.apifyRunId); paramIdx++; }
     if (extra.apifyDatasetId) { sets.push(`apify_dataset_id = $${paramIdx}`); params.push(extra.apifyDatasetId); paramIdx++; }
+    if (extra.apifySyncedCount !== undefined) { sets.push(`apify_synced_count = $${paramIdx}`); params.push(extra.apifySyncedCount); paramIdx++; }
     if (extra.totalVideos !== undefined) { sets.push(`total_videos = $${paramIdx}`); params.push(extra.totalVideos); paramIdx++; }
     if (extra.errorMessage) { sets.push(`error_message = $${paramIdx}`); params.push(extra.errorMessage); paramIdx++; }
     if (status === 'completed' || status === 'failed') { sets.push('completed_at = NOW()'); }
