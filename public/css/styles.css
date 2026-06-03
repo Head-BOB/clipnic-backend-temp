@@ -187,7 +187,7 @@ body {
 .form-row { display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap; }
 .form-group { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 200px; }
 .form-group label { font-size: 13px; font-weight: 500; color: var(--text-muted); }
-input, select {
+input, select, textarea {
     background: transparent;
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -196,8 +196,9 @@ input, select {
     font-size: 14px;
     outline: none;
     transition: border-color 0.2s;
+    font-family: inherit;
 }
-input:focus, select:focus { border-color: var(--border-light); }
+input:focus, select:focus, textarea:focus { border-color: var(--border-light); }
 select option { background: var(--bg-card); }
 
 /* Filter Bar (Matches Screenshot) */
@@ -252,6 +253,19 @@ select option { background: var(--bg-card); }
 .btn-outline:hover:not(:disabled) { border-color: var(--border-light); background: var(--bg-card-hover); }
 .btn-success { background: var(--accent-green-bg); color: var(--accent-green); border-color: rgba(16,185,129,0.3); padding: 6px 12px; font-size: 12px;}
 .btn-danger { background: var(--accent-red-bg); color: var(--accent-red); border-color: rgba(239,68,68,0.3); padding: 6px 12px; font-size: 12px;}
+
+.btn.loading { position: relative; color: transparent !important; pointer-events: none; }
+.btn.loading::after {
+    content: '';
+    position: absolute;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spinBtn 0.6s linear infinite;
+    top: calc(50% - 7px); left: calc(50% - 7px);
+}
+@keyframes spinBtn { to { transform: rotate(360deg); } }
 
 /* ---- Empty State ---- */
 .empty-state {
@@ -353,7 +367,7 @@ select option { background: var(--bg-card); }
 .pagination-footer { display: flex; justify-content: center; margin-top: 16px; }
 
 /* ---- Loading Spinner ---- */
-.status-spinner { animation: spin 1s linear infinite; color: var(--text-muted); }
+.status-spinner svg { animation: spin 1s linear infinite; color: var(--text-muted); display: block; transform-origin: center center; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
 
 /* ---- Utilities ---- */

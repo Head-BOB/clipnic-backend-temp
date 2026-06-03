@@ -69,56 +69,78 @@ function fmtDateTime(iso) {
 // ============================================================
 
 async function startScrape() {
-    const username = document.getElementById('input-username').value.trim();
+    const rawUsernames = document.getElementById('input-username').value.trim();
     const afterDate = document.getElementById('input-date').value;
     const cpmRate = parseFloat(document.getElementById('input-cpm').value) || 4;
 
-    if (!username) { showToast('Enter a TikTok username', 'error'); return; }
+    if (!rawUsernames) { showToast('Enter at least one TikTok username', 'error'); return; }
     if (!afterDate) { showToast('Select a date', 'error'); return; }
+
+    // Parse usernames (split by comma, space, or newline)
+    const usernames = rawUsernames
+        .split(/[\s,]+/)
+        .map(u => u.trim().replace(/^@/, ''))
+        .filter(Boolean);
+
+    if (usernames.length === 0) return;
 
     const btn = document.getElementById('btn-scrape');
     btn.classList.add('loading');
     btn.disabled = true;
 
-    try {
-        const result = await API.startScrape(username, afterDate, cpmRate);
-        currentJobId = result.jobId;
-        showToast(`Scrape started for @${username} (Job #${result.jobId})`, 'success');
+    // Show status panel
+    const statusEl = document.getElementById('job-status');
+    statusEl.classList.remove('hidden');
 
-        // Show status panel
-        const statusEl = document.getElementById('job-status');
-        statusEl.classList.remove('hidden');
-        document.getElementById('status-title').textContent = `Scraping @${username}...`;
+    // Process queue sequentially
+    for (let i = 0; i < usernames.length; i++) {
+        const username = usernames[i];
+        document.getElementById('status-title').textContent = `Queuing @${username}... (${i + 1}/${usernames.length})`;
         document.getElementById('status-detail').textContent = 'Connecting to Apify...';
-        document.getElementById('status-indicator').className = 'status-indicator';
-        document.getElementById('progress-bar').className = 'progress-bar';
+        document.getElementById('status-spinner').classList.remove('hidden');
 
-        // Start polling
-        startPolling(result.jobId);
-    } catch (err) {
-        showToast(err.message, 'error');
-    } finally {
-        btn.classList.remove('loading');
-        btn.disabled = false;
+        try {
+            const result = await API.startScrape(username, afterDate, cpmRate);
+            currentJobId = result.jobId;
+            showToast(`Started @${username} (Job #${result.jobId})`, 'success');
+
+            // Wait for this job to complete before starting next
+            await waitForJobCompletion(result.jobId);
+        } catch (err) {
+            showToast(`Error starting @${username}: ${err.message}`, 'error');
+            // Wait a few seconds before trying the next one if it failed immediately
+            await new Promise(r => setTimeout(r, 3000));
+        }
     }
+
+    // Done with all
+    document.getElementById('status-title').textContent = `Bulk Scrape Complete!`;
+    document.getElementById('status-detail').textContent = `Processed ${usernames.length} profiles.`;
+    document.getElementById('status-spinner').classList.add('hidden');
+    
+    btn.classList.remove('loading');
+    btn.disabled = false;
 }
 
-function startPolling(jobId) {
-    if (pollTimer) clearInterval(pollTimer);
-    pollTimer = setInterval(async () => {
-        try {
-            const data = await API.getJobStatus(jobId);
-            updateStatusUI(data);
+// Promisified poller that blocks the async queue
+function waitForJobCompletion(jobId) {
+    return new Promise((resolve) => {
+        let timer = setInterval(async () => {
+            try {
+                const data = await API.getJobStatus(jobId);
+                updateStatusUI(data);
 
-            if (['completed', 'failed'].includes(data.job.status)) {
-                clearInterval(pollTimer);
-                pollTimer = null;
-                loadPastJobs();
+                if (['completed', 'failed'].includes(data.job.status)) {
+                    clearInterval(timer);
+                    loadPastJobs();
+                    resolve();
+                }
+            } catch (err) {
+                console.error('Poll error:', err);
+                // Don't resolve on temporary poll error, let it retry
             }
-        } catch (err) {
-            console.error('Poll error:', err);
-        }
-    }, 3000);
+        }, 3000);
+    });
 }
 
 function updateStatusUI(data) {
@@ -138,19 +160,17 @@ function updateStatusUI(data) {
 
     title.textContent = statusMap[job.status] || job.status;
 
-    if (job.status === 'completed') {
-        indicator.className = 'status-indicator done';
-        progressBar.className = 'progress-bar done';
+        document.getElementById('status-spinner').classList.add('hidden');
         detail.textContent = metrics
             ? `${fmtNum(metrics.total_views)} total views · ${fmtNum(metrics.eligible_views)} eligible · $${metrics.gross_profit.toFixed(2)} gross profit`
             : 'Completed';
         showToast(`Scrape complete! ${job.totalVideos} videos from @${job.username}`, 'success');
     } else if (job.status === 'failed') {
-        indicator.className = 'status-indicator error';
-        progressBar.style.display = 'none';
+        document.getElementById('status-spinner').classList.add('hidden');
         detail.textContent = job.errorMessage || 'An error occurred';
         showToast(`Scrape failed for @${job.username}`, 'error');
     } else {
+        document.getElementById('status-spinner').classList.remove('hidden');
         detail.textContent = `Status: ${job.status}`;
     }
 }
@@ -427,9 +447,8 @@ async function refreshLogs() {
 function startLogAutoRefresh() {
     if (logTimer) clearInterval(logTimer);
     logTimer = setInterval(() => {
-        const autoRefresh = document.getElementById('log-auto-refresh');
         const logsTab = document.getElementById('content-logs');
-        if (autoRefresh.checked && logsTab.classList.contains('active')) {
+        if (logsTab && logsTab.classList.contains('active')) {
             refreshLogs();
         }
     }, 5000);
