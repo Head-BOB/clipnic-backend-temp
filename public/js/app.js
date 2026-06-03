@@ -118,7 +118,6 @@ function waitForJobCompletion(jobId) {
                 // Don't resolve on temporary poll error, let it retry
             }
         }, 3000);
-        }, 3000);
     });
 }
 
