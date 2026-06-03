@@ -112,10 +112,11 @@ async function startAccountScrape(platform, urls, jobId, apiToken) {
 
     if (platform === 'tiktok') {
         url = `${APIFY_BASE_URL}/acts/clockworks~tiktok-scraper/runs?token=${apiToken}`;
-        // Extract usernames if they pasted URLs
+        // Extract usernames if they pasted URLs, strip query params
         const profiles = urls.map(u => {
-            const match = u.match(/@([\w.-]+)/);
-            return match ? match[1] : u;
+            const cleanUrl = u.split('?')[0];
+            const match = cleanUrl.match(/@([\w.-]+)/);
+            return match ? match[1] : cleanUrl;
         });
         input = { 
             profiles: profiles,
@@ -126,10 +127,12 @@ async function startAccountScrape(platform, urls, jobId, apiToken) {
         };
     } else if (platform === 'instagram') {
         url = `${APIFY_BASE_URL}/acts/apify~instagram-scraper/runs?token=${apiToken}`;
-        input = { directUrls: urls, resultsType: 'posts' };
+        const cleanUrls = urls.map(u => u.split('?')[0]);
+        input = { directUrls: cleanUrls, resultsType: 'posts' };
     } else if (platform === 'youtube') {
         url = `${APIFY_BASE_URL}/acts/streamers~youtube-scraper/runs?token=${apiToken}`;
-        input = { startUrls: urls.map(u => ({ url: u })) };
+        const cleanUrls = urls.map(u => u.split('?')[0]);
+        input = { startUrls: cleanUrls.map(u => ({ url: u })) };
     }
 
     const response = await fetch(url, {
