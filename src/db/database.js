@@ -23,19 +23,27 @@ function initDatabase() {
 
     log.info('Initializing PostgreSQL connection pool...');
 
-    pool = new Pool({
-        connectionString,
-        ssl: { rejectUnauthorized: false },
-        max: 10,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 10000
-    });
+    // Use global object to cache the pool across hot-reloads in serverless
+    if (!global.__dbPool) {
+        global.__dbPool = new Pool({
+            connectionString,
+            ssl: { rejectUnauthorized: false },
+            max: 2, // Extremely low max to respect Supabase 15 connection limit
+            idleTimeoutMillis: 1000, // Close idle connections almost instantly
+            connectionTimeoutMillis: 10000,
+            allowExitOnIdle: true
+        });
 
-    pool.on('error', (err) => {
-        log.error('Unexpected pool error:', { message: err.message });
-    });
+        global.__dbPool.on('error', (err) => {
+            log.error('Unexpected pool error:', { message: err.message });
+        });
+        
+        log.info('PostgreSQL pool created (Serverless optimized)');
+    } else {
+        log.info('Reusing existing PostgreSQL pool from global cache');
+    }
 
-    log.info('PostgreSQL pool created');
+    pool = global.__dbPool;
     return pool;
 }
 
