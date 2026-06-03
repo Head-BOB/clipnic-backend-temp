@@ -60,6 +60,10 @@ const API = {
         return this.get(`/api/videos/${jobId}/summary`);
     },
 
+    getGlobalMetrics() {
+        return this.get('/api/metrics/global');
+    },
+
     getLogs(source = 'app', level = 'all', lines = 100) {
         const endpoint = source === 'scraper' ? '/api/logs/scraper' : '/api/logs';
         const params = new URLSearchParams({ lines });

@@ -295,6 +295,23 @@ async function getJobMetrics(jobId) {
     };
 }
 
+async function getGlobalMetrics() {
+    log.debug(`Calculating global metrics across all campaigns`);
+    const result = await dbQuery(`
+        SELECT
+            COUNT(v.id)::int as total_videos,
+            COALESCE(SUM(v.play_count), 0)::bigint as total_views,
+            COALESCE(SUM(CASE WHEN v.is_eligible THEN v.play_count ELSE 0 END), 0)::bigint as eligible_views,
+            COALESCE(SUM(CASE WHEN v.review_status = 'approved' THEN 1 ELSE 0 END), 0)::int as approved_count,
+            COALESCE(SUM(CASE WHEN v.review_status = 'approved' THEN v.play_count ELSE 0 END), 0)::bigint as approved_views,
+            COALESCE(SUM(CASE WHEN v.is_eligible THEN (v.play_count::numeric / 1000.0) * j.cpm_rate ELSE 0 END), 0)::numeric as gross_profit,
+            COALESCE(SUM(CASE WHEN v.review_status = 'approved' AND v.is_eligible THEN (v.play_count::numeric / 1000.0) * j.cpm_rate ELSE 0 END), 0)::numeric as approved_profit
+        FROM videos v
+        JOIN scrape_jobs j ON v.job_id = j.id
+    `);
+    return result.rows[0];
+}
+
 async function getAllVideosForExport(jobId) {
     const result = await dbQuery(
         'SELECT * FROM videos WHERE job_id = $1 ORDER BY play_count DESC', [jobId]
@@ -320,5 +337,5 @@ module.exports = {
     createJob, updateJobStatus, getJob,    getAllJobs,
     deleteJob,
     insertVideos, getVideosByJob, updateVideoReview,
-    getJobMetrics, getAllVideosForExport, getAllGlobalApprovedVideos
+    getJobMetrics, getGlobalMetrics, getAllVideosForExport, getAllGlobalApprovedVideos
 };

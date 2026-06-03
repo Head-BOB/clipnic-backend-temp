@@ -37,7 +37,7 @@
             <div class="sidebar-section">
                 <div class="sidebar-label">ADMIN PORTAL</div>
                 <nav class="sidebar-nav">
-                    <a href="#" class="nav-item disabled"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg> Stats</a>
+                    <a href="#" class="nav-item tab" data-tab="stats" id="tab-stats"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg> Stats</a>
                     <a href="#" class="nav-item disabled"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Bookings</a>
                     <a href="#" class="nav-item disabled"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg> Campaigns</a>
                     <a href="#" class="nav-item tab" data-tab="admin" id="tab-admin"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Review</a>
@@ -56,6 +56,39 @@
         <main class="main-content">
             <!-- Toast container -->
             <div class="toast-container" id="toast-container"></div>
+
+            <!-- TAB: STATS -->
+            <section class="tab-content" id="content-stats">
+                <div class="page-header">
+                    <div>
+                        <h1>Platform Stats</h1>
+                        <p class="subtitle">Global metrics across the entire platform and all connected accounts.</p>
+                    </div>
+                </div>
+                
+                <div class="metrics-grid" id="global-metrics-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:20px; margin-top:20px;">
+                    <div class="metric-card">
+                        <div class="metric-label">Total Videos Scraped</div>
+                        <div class="metric-value" id="global-mv-videos">0</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Total Views</div>
+                        <div class="metric-value" id="global-mv-views">0</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Approved Videos</div>
+                        <div class="metric-value" id="global-mv-approved">0</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-label">Gross Potential Profit</div>
+                        <div class="metric-value" id="global-mv-gross">$0</div>
+                    </div>
+                    <div class="metric-card" style="border: 1px solid var(--accent-color);">
+                        <div class="metric-label text-green">Total Approved Profit</div>
+                        <div class="metric-value text-green" id="global-mv-profit">$0</div>
+                    </div>
+                </div>
+            </section>
 
             <!-- TAB: AUTO SCRAP -->
             <section class="tab-content active" id="content-scraper">

@@ -479,7 +479,30 @@ function startAutoRefresh() {
         if (scraperTab && scraperTab.classList.contains('active')) {
             loadPastJobs();
         }
+
+        const statsTab = document.getElementById('content-stats');
+        if (statsTab && statsTab.classList.contains('active')) {
+            loadGlobalStats();
+        }
     }, 4000); // 4 seconds
+}
+
+// ============================================================
+// STATS TAB
+// ============================================================
+
+async function loadGlobalStats() {
+    try {
+        const data = await API.getGlobalMetrics();
+        const m = data.metrics;
+        document.getElementById('global-mv-videos').innerText = fmtNum(m.total_videos);
+        document.getElementById('global-mv-views').innerText = fmtNum(m.total_views);
+        document.getElementById('global-mv-approved').innerText = fmtNum(m.approved_count);
+        document.getElementById('global-mv-gross').innerText = '$' + fmtNum(m.gross_profit);
+        document.getElementById('global-mv-profit').innerText = '$' + fmtNum(m.approved_profit);
+    } catch (err) {
+        console.error('Failed to load global stats:', err);
+    }
 }
 
 // ============================================================
@@ -502,6 +525,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (tab.dataset.tab === 'admin') loadAdminJobList();
             if (tab.dataset.tab === 'logs') refreshLogs();
             if (tab.dataset.tab === 'scraper') loadPastJobs();
+            if (tab.dataset.tab === 'stats') loadGlobalStats();
         });
     });
 
