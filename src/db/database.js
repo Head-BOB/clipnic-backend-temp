@@ -204,7 +204,23 @@ async function insertVideos(jobId, videos) {
         for (const v of videos) {
             const playCount = v.playCount || 0;
             const isEligible = playCount >= 1000;
+            const webUrl = v.webVideoUrl || '';
             
+            if (webUrl) {
+                // Check if video URL already exists globally
+                const existingResult = await client.query('SELECT id FROM videos WHERE web_video_url = $1 LIMIT 1', [webUrl]);
+                
+                if (existingResult.rows.length > 0) {
+                    // Update stats instead of inserting new
+                    await client.query(`
+                        UPDATE videos 
+                        SET play_count = $1, digg_count = $2, share_count = $3, comment_count = $4, collect_count = $5, duration = $6
+                        WHERE id = $7
+                    `, [playCount, v.diggCount || 0, v.shareCount || 0, v.commentCount || 0, v.collectCount || 0, v.duration || 0, existingResult.rows[0].id]);
+                    continue; // Skip insert
+                }
+            }
+
             // Auto-reject logic based on job's min_views
             let finalStatus = defaultStatus;
             if (!isExternalUrlJob && playCount < jobData.min_views) {
@@ -221,7 +237,7 @@ async function insertVideos(jobId, videos) {
                 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
                 ON CONFLICT (job_id, tiktok_id) DO NOTHING`,
                 [
-                    jobId, v.id || '', v.webVideoUrl || '', (v.text || '').substring(0, 500),
+                    jobId, v.id || '', webUrl, (v.text || '').substring(0, 500),
                     playCount, v.diggCount || 0, v.shareCount || 0,
                     v.commentCount || 0, v.collectCount || 0, v.duration || 0,
                     v.coverUrl || '', v.createTimeISO || '',

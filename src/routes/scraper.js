@@ -199,6 +199,48 @@ router.get('/scrape/:jobId/sync', async (req, res) => {
     }
 });
 
+router.post('/scrape/refresh-approved', async (req, res) => {
+    try {
+        const apiToken = process.env.APIFY_API_TOKEN;
+        if (!apiToken) {
+            return res.status(500).json({ error: 'Apify API token not configured.' });
+        }
+
+        const videos = await getAllGlobalApprovedVideos();
+        if (videos.length === 0) {
+            return res.status(400).json({ error: 'No approved videos to refresh.' });
+        }
+
+        // Group by platform
+        const platforms = { tiktok: [], instagram: [], youtube: [] };
+        videos.forEach(v => {
+            const url = v.web_video_url || '';
+            if (url.includes('tiktok.com')) platforms.tiktok.push(url);
+            else if (url.includes('instagram.com')) platforms.instagram.push(url);
+            else if (url.includes('youtube.com') || url.includes('youtu.be')) platforms.youtube.push(url);
+        });
+
+        const createdJobs = [];
+        const dateStr = new Date().toISOString().split('T')[0];
+
+        // Create job & start scrape for each platform
+        for (const [platform, urls] of Object.entries(platforms)) {
+            if (urls.length === 0) continue;
+            
+            const jobName = `Refresh ${platform.toUpperCase()} (${dateStr})`;
+            // use a default min_views and cpm_rate; the update logic will skip min_views rejection anyway since the video is already approved
+            const jobId = await createJob(jobName, '2020-01-01', 4.0, 1000);
+            await startUrlScrape(platform, urls, jobId, apiToken);
+            createdJobs.push(jobId);
+        }
+
+        res.json({ success: true, createdJobs, message: `Started ${createdJobs.length} refresh jobs` });
+    } catch (err) {
+        log.error(`POST /scrape/refresh-approved error: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.get('/jobs', async (req, res) => {
     try {
         const jobs = await getAllJobs();

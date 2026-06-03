@@ -21,9 +21,7 @@ function showToast(message, type = 'info') {
 // ---- Number Formatting ----
 function fmtNum(n) {
     if (n === null || n === undefined) return '0';
-    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-    if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
-    return n.toLocaleString();
+    return Number(n).toLocaleString();
 }
 
 function fmtDate(iso) {
@@ -673,6 +671,20 @@ async function exportPDF() {
 function exportGlobalURLs() {
     window.open('/api/export/approved-csv', '_blank');
     showToast('Downloading Approved URLs...', 'info');
+}
+
+async function refreshGlobalViews() {
+    try {
+        showToast('Initiating global views refresh...', 'info');
+        const res = await API.refreshApprovedViews();
+        if (res.success) {
+            showToast(`Started ${res.createdJobs.length} refresh jobs! Check Admin tab.`, 'success');
+            loadJobs(); // Refresh jobs list in background
+        }
+    } catch (err) {
+        showToast(`Failed to start refresh: ${err.message}`, 'error');
+        console.error(err);
+    }
 }
 
 async function exportGlobalPDF(type = 'approved') {

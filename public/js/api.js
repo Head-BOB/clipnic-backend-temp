@@ -56,6 +56,10 @@ const API = {
         return this.del(`/api/scrape/${jobId}`);
     },
 
+    refreshApprovedViews() {
+        return this.post('/api/scrape/refresh-approved');
+    },
+
     getVideos(jobId, page = 1, limit = 50, filter = 'all') {
         return this.get(`/api/videos/${jobId}?page=${page}&limit=${limit}&filter=${filter}`);
     },
