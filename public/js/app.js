@@ -8,12 +8,6 @@ let pollTimer = null;
 let logTimer = null;
 let adminCurrentPage = 1;
 
-// Global variables
-let currentJobId = null;
-let pollTimer = null;
-let logTimer = null;
-let adminCurrentPage = 1;
-
 // ---- Toast ----
 function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
