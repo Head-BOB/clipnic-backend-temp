@@ -376,6 +376,18 @@ async function deleteVideo(videoId) {
     return result.rowCount > 0;
 }
 
+async function filterExistingUrls(urlList) {
+    if (!urlList || urlList.length === 0) return [];
+    
+    const result = await dbQuery(`
+        SELECT web_video_url FROM videos 
+        WHERE web_video_url = ANY($1)
+    `, [urlList]);
+    
+    const existingSet = new Set(result.rows.map(r => r.web_video_url));
+    return urlList.filter(u => !existingSet.has(u));
+}
+
 function getPool() { return pool; }
 
 module.exports = {
@@ -384,5 +396,5 @@ module.exports = {
     deleteJob,
     insertVideos, getVideosByJob, updateVideoReview,
     getJobMetrics, getGlobalMetrics, getAllVideosForExport, getAllGlobalApprovedVideos,
-    getSystemAuditAnomalies, deleteVideo
+    getSystemAuditAnomalies, deleteVideo, filterExistingUrls
 };

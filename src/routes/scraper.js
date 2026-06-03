@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { createModuleLogger } = require('../logger');
-const { createJob, getJob, getAllJobs, deleteJob, getJobMetrics, getGlobalMetrics, getAllGlobalApprovedVideos, getSystemAuditAnomalies } = require('../db/database');
+const { createJob, getJob, getAllJobs, deleteJob, getJobMetrics, getGlobalMetrics, getAllGlobalApprovedVideos, getSystemAuditAnomalies, filterExistingUrls } = require('../db/database');
 const { startScrape, startUrlScrape, syncJob } = require('../scraper/apify');
 
 const log = createModuleLogger('API:SCRAPER');
@@ -62,7 +62,12 @@ router.post('/scrape/urls', async (req, res) => {
             return res.status(500).json({ error: 'Apify API token not configured.' });
         }
 
-        const urlList = urls.split(/[\n,]+/).map(u => u.trim()).filter(u => u.length > 5);
+        const rawUrlList = urls.split(/[\n,]+/).map(u => u.trim()).filter(u => u.length > 5);
+        const urlList = await filterExistingUrls(rawUrlList);
+
+        if (urlList.length === 0) {
+            return res.status(200).json({ success: true, jobsCreated: [], message: 'All submitted URLs already exist in the database. No new jobs created.' });
+        }
         
         // Categorize by platform
         const tiktokUrls = urlList.filter(u => u.includes('tiktok.com'));
