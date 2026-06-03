@@ -45,7 +45,7 @@ if (IS_VERCEL) {
             try {
                 await initializeApp();
             } catch (err) {
-                return res.status(500).json({ error: 'Database initialization failed' });
+                return res.status(500).json({ error: `Database initialization failed: ${err.message}` });
             }
         }
         next();
