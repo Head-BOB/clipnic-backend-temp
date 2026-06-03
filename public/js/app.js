@@ -10,17 +10,29 @@ let adminCurrentPage = 1;
 
 // ---- Tab Navigation ----
 document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => {
+    tab.addEventListener('click', (e) => {
+        e.preventDefault();
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         tab.classList.add('active');
         document.getElementById('content-' + tab.dataset.tab).classList.add('active');
+
+        // Close sidebar on mobile after click
+        document.getElementById('sidebar').classList.remove('open');
 
         if (tab.dataset.tab === 'admin') loadAdminJobList();
         if (tab.dataset.tab === 'logs') refreshLogs();
         if (tab.dataset.tab === 'scraper') loadPastJobs();
     });
 });
+
+// ---- Mobile Menu ----
+const mobileToggle = document.getElementById('mobile-menu-toggle');
+if (mobileToggle) {
+    mobileToggle.addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('open');
+    });
+}
 
 // ---- Toast ----
 function showToast(message, type = 'info') {
@@ -232,9 +244,7 @@ async function loadMetrics(jobId) {
         document.getElementById('mv-eligible-views').textContent = fmtNum(m.eligible_views);
         document.getElementById('mv-profit').textContent = `$${m.gross_profit.toFixed(2)}`;
         document.getElementById('mv-approved-profit').textContent = `$${m.approved_profit.toFixed(2)}`;
-        document.getElementById('mv-approved').textContent = m.approved_count || 0;
-        document.getElementById('mv-rejected').textContent = m.rejected_count || 0;
-        document.getElementById('mv-pending').textContent = m.pending_count || 0;
+        document.getElementById('header-approved-count').textContent = m.approved_count || 0;
     } catch (err) {
         showToast('Failed to load metrics', 'error');
     }
@@ -263,40 +273,44 @@ function renderVideoList(videos, jobId) {
     const list = document.getElementById('video-list');
 
     if (videos.length === 0) {
-        list.innerHTML = '<p class="text-muted" style="padding:40px;text-align:center">No videos match the filter.</p>';
+        list.innerHTML = '';
+        document.getElementById('video-empty-state').classList.remove('hidden');
+        document.getElementById('video-list-wrapper').classList.add('hidden');
         return;
     }
 
+    document.getElementById('video-empty-state').classList.add('hidden');
+    document.getElementById('video-list-wrapper').classList.remove('hidden');
+
     list.innerHTML = videos.map(v => {
-        const statusClass = v.review_status !== 'pending' ? `status-${v.review_status}` : '';
         const thumbHtml = v.cover_url
-            ? `<img src="${v.cover_url}" class="video-thumb" alt="Video thumbnail" loading="lazy" onerror="this.outerHTML='<div class=\\'video-thumb-placeholder\\'>▶</div>'">`
-            : '<div class="video-thumb-placeholder">▶</div>';
+            ? `<img src="${v.cover_url}" class="video-thumb" alt="Video thumbnail" loading="lazy" onerror="this.outerHTML='<div class=\\'video-thumb-placeholder\\'><svg width=\\'20\\' height=\\'20\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'2\\'><polygon points=\\'5 3 19 12 5 21 5 3\\'/></svg></div>'">`
+            : `<div class="video-thumb-placeholder"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>`;
 
         const desc = v.description || 'No description';
         const truncatedDesc = desc.length > 60 ? desc.substring(0, 60) + '...' : desc;
 
         const profitHtml = v.is_eligible
-            ? `<span class="video-profit eligible">$${v.profit.toFixed(2)}</span>`
+            ? `<span class="video-profit text-green">$${v.profit.toFixed(2)}</span>`
             : `<span class="video-profit ineligible">Ineligible</span>`;
 
         const statusBadge = v.review_status === 'approved'
-            ? '<span class="video-status-badge" style="background:var(--success-bg);color:var(--success)">APPROVED</span>'
+            ? '<span class="badge badge-approved">Approved</span>'
             : v.review_status === 'rejected'
-            ? '<span class="video-status-badge" style="background:var(--error-bg);color:var(--error)">REJECTED</span>'
-            : '<span class="video-status-badge" style="background:var(--warning-bg);color:var(--warning)">PENDING</span>';
+            ? '<span class="badge badge-rejected">Rejected</span>'
+            : '<span class="badge badge-pending">Pending</span>';
 
         return `
-            <div class="video-card ${statusClass}" id="video-card-${v.id}">
+            <div class="video-card" id="video-card-${v.id}">
                 ${thumbHtml}
                 <div class="video-info">
                     <div class="video-title" title="${desc.replace(/"/g, '&quot;')}">${truncatedDesc}</div>
                     <div class="video-meta">
-                        <span class="views">👁 ${fmtNum(v.play_count)}</span>
-                        <span>❤ ${fmtNum(v.digg_count)}</span>
-                        <span>↗ ${fmtNum(v.share_count)}</span>
-                        <span>💬 ${fmtNum(v.comment_count)}</span>
-                        <span>📅 ${fmtDate(v.created_time_iso)}</span>
+                        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> ${fmtNum(v.play_count)}</span>
+                        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg> ${fmtNum(v.digg_count)}</span>
+                        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><line x1="9" y1="21" x2="21" y2="3"/><line x1="21" y1="21" x2="3" y2="21"/></svg> ${fmtNum(v.share_count)}</span>
+                        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> ${fmtNum(v.comment_count)}</span>
+                        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ${fmtDate(v.created_time_iso)}</span>
                     </div>
                 </div>
                 <div class="video-stats">
@@ -304,9 +318,13 @@ function renderVideoList(videos, jobId) {
                     ${statusBadge}
                 </div>
                 <div class="video-actions">
-                    <button class="btn btn-success" onclick="reviewVideo(${v.id}, 'approved', ${jobId})" ${v.review_status === 'approved' ? 'disabled' : ''}>✓ Approve</button>
-                    <button class="btn btn-danger" onclick="reviewVideo(${v.id}, 'rejected', ${jobId})" ${v.review_status === 'rejected' ? 'disabled' : ''}>✗ Reject</button>
-                    <a href="${v.web_video_url}" target="_blank" class="btn btn-secondary" style="padding:6px 10px;font-size:11px">Open ↗</a>
+                    <button class="btn btn-success" onclick="reviewVideo(${v.id}, 'approved', ${jobId})" ${v.review_status === 'approved' ? 'disabled' : ''}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                    </button>
+                    <button class="btn btn-danger" onclick="reviewVideo(${v.id}, 'rejected', ${jobId})" ${v.review_status === 'rejected' ? 'disabled' : ''}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                    <a href="${v.web_video_url}" target="_blank" class="btn btn-outline" style="padding:6px 12px;font-size:12px">View</a>
                 </div>
             </div>
         `;
