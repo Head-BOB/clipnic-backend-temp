@@ -17,6 +17,41 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const IS_VERCEL = !!process.env.VERCEL;
 
+// ---- Initialization ----
+let isInitialized = false;
+
+async function initializeApp() {
+    if (isInitialized) return;
+    try {
+        log.info('=== CLIPNIC CAMPAIGN SCRAPER ===');
+        log.info('Initializing PostgreSQL database connection...');
+        initDatabase();
+        
+        await createTables();
+        
+        log.info(`API Token configured: ${process.env.APIFY_API_TOKEN && process.env.APIFY_API_TOKEN !== 'your_apify_token_here' ? 'YES' : 'NO — set APIFY_API_TOKEN in .env'}`);
+        log.info(`Default CPM Rate: $${process.env.DEFAULT_CPM_RATE || 4}`);
+        isInitialized = true;
+    } catch (err) {
+        log.error(`Initialization failed: ${err.message}`, { stack: err.stack });
+        throw err;
+    }
+}
+
+if (IS_VERCEL) {
+    // VERCEL ONLY: Ensure DB is initialized before handling ANY request
+    app.use(async (req, res, next) => {
+        if (!isInitialized) {
+            try {
+                await initializeApp();
+            } catch (err) {
+                return res.status(500).json({ error: 'Database initialization failed' });
+            }
+        }
+        next();
+    });
+}
+
 // ---- Middleware ----
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -60,48 +95,8 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: 'Internal server error' });
 });
 
-// ---- Initialization ----
-let isInitialized = false;
-
-async function initializeApp() {
-    if (isInitialized) return;
-    try {
-        log.info('=== CLIPNIC CAMPAIGN SCRAPER ===');
-        log.info('Initializing PostgreSQL database connection...');
-        initDatabase();
-        
-        // For Vercel, we might skip table creation on every request if it slows things down,
-        // but for now, we'll keep it to ensure tables exist. 
-        // Postgres `CREATE TABLE IF NOT EXISTS` is fast enough.
-        await createTables();
-        
-        log.info(`API Token configured: ${process.env.APIFY_API_TOKEN && process.env.APIFY_API_TOKEN !== 'your_apify_token_here' ? 'YES' : 'NO — set APIFY_API_TOKEN in .env'}`);
-        log.info(`Default CPM Rate: $${process.env.DEFAULT_CPM_RATE || 4}`);
-        isInitialized = true;
-    } catch (err) {
-        log.error(`Initialization failed: ${err.message}`, { stack: err.stack });
-        throw err; // Fail hard if we can't connect to the DB
-    }
-}
-
 // ---- Start ----
 if (IS_VERCEL) {
-    // For Vercel serverless functions, we export the app and initialize on the first request
-    // Note: Vercel might cold-start, so we init before handling requests in a wrapper or rely on top-level await (if supported).
-    // The simplest pattern for Express on Vercel is to just export the app, but we need async init.
-    
-    // We'll use a middleware to ensure init before any request is processed.
-    app.use(async (req, res, next) => {
-        if (!isInitialized) {
-            try {
-                await initializeApp();
-            } catch (err) {
-                return res.status(500).json({ error: 'Database initialization failed' });
-            }
-        }
-        next();
-    });
-    
     module.exports = app;
 } else {
     // Local development mode
