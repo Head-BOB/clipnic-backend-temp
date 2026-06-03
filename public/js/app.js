@@ -181,20 +181,26 @@ async function loadPastJobs() {
         const list = document.getElementById('jobs-list');
 
         if (data.jobs.length === 0) {
-            list.innerHTML = '<p class="text-muted" style="padding:20px;text-align:center">No scrape jobs yet. Start your first scrape above!</p>';
+            list.innerHTML = '<div class="empty-state" style="padding:30px 10px"><p>No scrape jobs yet. Start your first scrape above!</p></div>';
             return;
         }
 
-        list.innerHTML = data.jobs.map(job => `
-            <div class="job-card" onclick="viewJob(${job.id})">
-                <div class="job-card-info">
-                    <strong>@${job.username}</strong>
-                    <span>After ${fmtDate(job.after_date)} · ${job.total_videos || 0} videos · $${job.cpm_rate} CPM</span>
-                    <span>${fmtDateTime(job.created_at)}</span>
+        list.innerHTML = data.jobs.map(job => {
+            let progressText = `${job.total_videos || 0} videos`;
+            if (job.status === 'scraping' || job.status === 'processing') {
+                 progressText = `<span style="color:var(--text-main); font-weight:500;">${job.total_videos || 0} videos found so far...</span>`;
+            }
+
+            return `
+            <div class="job-card" style="cursor:pointer" onclick="viewJob(${job.id})">
+                <div class="job-info">
+                    <h4>@${job.username}</h4>
+                    <p>After ${fmtDate(job.after_date)} &middot; ${progressText} &middot; $${job.cpm_rate} CPM &middot; ${fmtDateTime(job.created_at)}</p>
                 </div>
-                <span class="job-status-badge badge-${job.status}">${job.status}</span>
+                <span class="badge badge-${job.status}">${job.status}</span>
             </div>
-        `).join('');
+            `;
+        }).join('');
     } catch (err) {
         console.error('Load jobs error:', err);
     }
@@ -443,15 +449,20 @@ async function refreshLogs() {
     }
 }
 
-// Auto-refresh logs
-function startLogAutoRefresh() {
+// Auto-refresh logs and past jobs
+function startAutoRefresh() {
     if (logTimer) clearInterval(logTimer);
     logTimer = setInterval(() => {
         const logsTab = document.getElementById('content-logs');
         if (logsTab && logsTab.classList.contains('active')) {
             refreshLogs();
         }
-    }, 5000);
+        
+        const scraperTab = document.getElementById('content-scraper');
+        if (scraperTab && scraperTab.classList.contains('active')) {
+            loadPastJobs();
+        }
+    }, 4000); // 4 seconds
 }
 
 // ============================================================
@@ -465,5 +476,5 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('input-date').value = thirtyDaysAgo.toISOString().split('T')[0];
 
     loadPastJobs();
-    startLogAutoRefresh();
+    startAutoRefresh();
 });
