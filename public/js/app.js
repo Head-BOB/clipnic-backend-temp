@@ -8,31 +8,11 @@ let pollTimer = null;
 let logTimer = null;
 let adminCurrentPage = 1;
 
-// ---- Tab Navigation ----
-document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', (e) => {
-        e.preventDefault();
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        tab.classList.add('active');
-        document.getElementById('content-' + tab.dataset.tab).classList.add('active');
-
-        // Close sidebar on mobile after click
-        document.getElementById('sidebar').classList.remove('open');
-
-        if (tab.dataset.tab === 'admin') loadAdminJobList();
-        if (tab.dataset.tab === 'logs') refreshLogs();
-        if (tab.dataset.tab === 'scraper') loadPastJobs();
-    });
-});
-
-// ---- Mobile Menu ----
-const mobileToggle = document.getElementById('mobile-menu-toggle');
-if (mobileToggle) {
-    mobileToggle.addEventListener('click', () => {
-        document.getElementById('sidebar').classList.toggle('open');
-    });
-}
+// Global variables
+let currentJobId = null;
+let pollTimer = null;
+let logTimer = null;
+let adminCurrentPage = 1;
 
 // ---- Toast ----
 function showToast(message, type = 'info') {
@@ -471,6 +451,32 @@ function startAutoRefresh() {
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', () => {
+    // ---- Tab Navigation ----
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById('content-' + tab.dataset.tab).classList.add('active');
+
+            // Close sidebar on mobile after click
+            document.getElementById('sidebar').classList.remove('open');
+
+            if (tab.dataset.tab === 'admin') loadAdminJobList();
+            if (tab.dataset.tab === 'logs') refreshLogs();
+            if (tab.dataset.tab === 'scraper') loadPastJobs();
+        });
+    });
+
+    // ---- Mobile Menu ----
+    const mobileToggle = document.getElementById('mobile-menu-toggle');
+    if (mobileToggle) {
+        mobileToggle.addEventListener('click', () => {
+            document.getElementById('sidebar').classList.toggle('open');
+        });
+    }
+
     // Set default date to 30 days ago
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
