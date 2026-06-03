@@ -296,9 +296,20 @@ async function getJobMetrics(jobId) {
 }
 
 async function getAllVideosForExport(jobId) {
-    const result = await pool.query(
+    const result = await dbQuery(
         'SELECT * FROM videos WHERE job_id = $1 ORDER BY play_count DESC', [jobId]
     );
+    return result.rows;
+}
+
+async function getAllGlobalApprovedVideos() {
+    const result = await dbQuery(`
+        SELECT v.*, j.username, j.cpm_rate 
+        FROM videos v
+        JOIN scrape_jobs j ON v.job_id = j.id
+        WHERE v.review_status = 'approved'
+        ORDER BY v.reviewed_at DESC, v.play_count DESC
+    `);
     return result.rows;
 }
 
@@ -309,5 +320,5 @@ module.exports = {
     createJob, updateJobStatus, getJob,    getAllJobs,
     deleteJob,
     insertVideos, getVideosByJob, updateVideoReview,
-    getJobMetrics, getAllVideosForExport
+    getJobMetrics, getAllVideosForExport, getAllGlobalApprovedVideos
 };

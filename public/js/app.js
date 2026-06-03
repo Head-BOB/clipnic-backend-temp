@@ -422,6 +422,11 @@ function exportPDF() {
     showToast('Generating PDF report...', 'info');
 }
 
+function exportGlobalCSV() {
+    window.open('/api/export/approved-csv', '_blank');
+    showToast('Downloading Global CSV Export...', 'info');
+}
+
 // ============================================================
 // LOGS TAB
 // ============================================================

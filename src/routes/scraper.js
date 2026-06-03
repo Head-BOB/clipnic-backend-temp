@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { createModuleLogger } = require('../logger');
-const { createJob, getJob, getAllJobs, deleteJob, getJobMetrics } = require('../db/database');
+const { createJob, getJob, getAllJobs, deleteJob, getJobMetrics, getAllGlobalApprovedVideos } = require('../db/database');
 const { startScrape, syncJob } = require('../scraper/apify');
 
 const log = createModuleLogger('API:SCRAPER');
@@ -118,6 +118,50 @@ router.delete('/scrape/:jobId', async (req, res) => {
     } catch (err) {
         log.error(`DELETE /scrape error: ${err.message}`);
         res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/export/approved-csv', async (req, res) => {
+    try {
+        const videos = await getAllGlobalApprovedVideos();
+
+        if (videos.length === 0) {
+            return res.status(404).send('No approved videos found.');
+        }
+
+        // Generate CSV content
+        const headers = [
+            'Campaign User', 'TikTok URL', 'Description', 'Play Count', 
+            'Digg Count', 'Share Count', 'Comment Count', 'Profit ($)', 
+            'Approved At'
+        ];
+        
+        let csvContent = headers.join(',') + '\n';
+        
+        videos.forEach(v => {
+            const profit = v.is_eligible ? (Number(v.play_count) / 1000) * v.cpm_rate : 0;
+            const desc = (v.description || '').replace(/"/g, '""'); // Escape quotes for CSV
+            const row = [
+                `@${v.username}`,
+                v.web_video_url,
+                `"${desc}"`,
+                v.play_count,
+                v.digg_count,
+                v.share_count,
+                v.comment_count,
+                profit.toFixed(2),
+                v.reviewed_at
+            ];
+            csvContent += row.join(',') + '\n';
+        });
+
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename="clipnic_approved_videos.csv"');
+        res.send(csvContent);
+        
+    } catch (err) {
+        log.error(`GET /export/approved-csv error: ${err.message}`);
+        res.status(500).send('Error generating CSV export');
     }
 });
 
