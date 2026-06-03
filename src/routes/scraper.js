@@ -6,7 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { createModuleLogger } = require('../logger');
 const { createJob, getJob, getAllJobs, deleteJob, getJobMetrics, getGlobalMetrics, getAllGlobalApprovedVideos, getSystemAuditAnomalies, filterExistingUrls } = require('../db/database');
-const { startScrape, startUrlScrape, syncJob } = require('../scraper/apify');
+const { startScrape, startUrlScrape, startAccountScrape, syncJob } = require('../scraper/apify');
 
 const log = createModuleLogger('API:SCRAPER');
 
@@ -98,6 +98,56 @@ router.post('/scrape/urls', async (req, res) => {
         res.status(201).json({ success: true, jobsCreated, message: `Created ${jobsCreated.length} parallel scraper jobs for the submitted URLs.` });
     } catch (err) {
         log.error(`POST /scrape/urls error: ${err.message}`, { stack: err.stack });
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/scrape/accounts', async (req, res) => {
+    try {
+        const { urls, cpmRate, afterDate, minViews } = req.body;
+        if (!urls || urls.trim() === '') {
+            return res.status(400).json({ error: 'Missing URLs list' });
+        }
+        if (!afterDate) {
+            return res.status(400).json({ error: 'Missing afterDate' });
+        }
+
+        const apiToken = process.env.APIFY_API_TOKEN;
+        if (!apiToken || apiToken === 'your_apify_token_here') {
+            return res.status(500).json({ error: 'Apify API token not configured.' });
+        }
+
+        const urlList = urls.split(/[\n,]+/).map(u => u.trim()).filter(u => u.length > 5);
+        
+        // Categorize by platform
+        const tiktokUrls = urlList.filter(u => u.includes('tiktok.com'));
+        const instaUrls = urlList.filter(u => u.includes('instagram.com'));
+        const youtubeUrls = urlList.filter(u => u.includes('youtube.com') || u.includes('youtu.be'));
+
+        log.info(`Account Scrape URLs: ${tiktokUrls.length} TikTok, ${instaUrls.length} Insta, ${youtubeUrls.length} YouTube`);
+
+        const jobsCreated = [];
+        const finalMinViews = parseInt(minViews) || 1000;
+
+        if (tiktokUrls.length > 0) {
+            const jobId = await createJob('Multi-Account (TikTok)', afterDate, cpmRate || 4, finalMinViews);
+            await startAccountScrape('tiktok', tiktokUrls, jobId, apiToken);
+            jobsCreated.push(jobId);
+        }
+        if (instaUrls.length > 0) {
+            const jobId = await createJob('Multi-Account (Instagram)', afterDate, cpmRate || 4, finalMinViews);
+            await startAccountScrape('instagram', instaUrls, jobId, apiToken);
+            jobsCreated.push(jobId);
+        }
+        if (youtubeUrls.length > 0) {
+            const jobId = await createJob('Multi-Account (YouTube)', afterDate, cpmRate || 4, finalMinViews);
+            await startAccountScrape('youtube', youtubeUrls, jobId, apiToken);
+            jobsCreated.push(jobId);
+        }
+
+        res.status(201).json({ success: true, jobsCreated, message: `Created ${jobsCreated.length} parallel account scraper jobs.` });
+    } catch (err) {
+        log.error(`POST /scrape/accounts error: ${err.message}`, { stack: err.stack });
         res.status(500).json({ error: err.message });
     }
 });

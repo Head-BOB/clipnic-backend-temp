@@ -163,6 +163,60 @@ async function startUrlScrape() {
     }
 }
 
+async function startAccountScrape() {
+    const urls = document.getElementById('input-accounts').value;
+    const afterDate = document.getElementById('account-input-date').value;
+    const minViews = document.getElementById('account-min-views').value;
+    const cpm = document.getElementById('account-input-cpm').value;
+    const btn = document.getElementById('btn-account-scrape');
+
+    if (!urls) return showToast('Please enter account URLs', 'error');
+    if (!afterDate) return showToast('Please select a Videos After date', 'error');
+
+    // Strict validation to prevent video URLs
+    const urlArray = urls.split(/[\n,]+/).map(u => u.trim()).filter(u => u.length > 5);
+    for (const u of urlArray) {
+        if (u.includes('/video/') || u.includes('/p/') || u.includes('/reel/') || u.includes('watch?v=') || u.includes('youtu.be/')) {
+            alert(`Error: Video link detected!\n\n"${u}"\n\nPlease paste ONLY account/channel profile links here. Direct video links belong in the "Direct Video Links Only" box.`);
+            return;
+        }
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Scraping Accounts...';
+
+    document.getElementById('job-status').classList.remove('hidden');
+    document.getElementById('status-spinner').classList.remove('hidden');
+    document.getElementById('status-title').textContent = 'Submitting Account URLs...';
+    document.getElementById('status-detail').textContent = 'Waiting for API...';
+
+    try {
+        const res = await API.startAccountScrape(urls, parseFloat(cpm), afterDate, parseInt(minViews));
+        showToast(res.message, 'success');
+        document.getElementById('input-accounts').value = '';
+
+        // Wait for ALL created jobs sequentially
+        for (const jobId of res.jobsCreated) {
+            document.getElementById('status-title').textContent = `Processing Job #${jobId}...`;
+            await waitForJobCompletion(jobId);
+        }
+
+        document.getElementById('status-title').textContent = `All Account Jobs Complete!`;
+        document.getElementById('status-detail').textContent = `Processed ${res.jobsCreated.length} parallel jobs.`;
+        document.getElementById('status-spinner').classList.add('hidden');
+        
+    } catch (err) {
+        showToast(err.message, 'error');
+        document.getElementById('status-title').textContent = 'Error';
+        document.getElementById('status-detail').textContent = err.message;
+        document.getElementById('status-spinner').classList.add('hidden');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Scrape Accounts';
+        loadPastJobs();
+    }
+}
+
 function updateStatusUI(data) {
     const { job, metrics } = data;
     const indicator = document.getElementById('status-indicator');

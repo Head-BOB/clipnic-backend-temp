@@ -100,6 +100,61 @@ async function startUrlScrape(platform, urls, jobId, apiToken) {
 }
 
 /**
+ * Start an Apify run for Account/Profile URLs (multi-platform)
+ */
+async function startAccountScrape(platform, urls, jobId, apiToken) {
+    log.info(`=== STARTING APIFY ACCOUNT RUN: ${platform} (${urls.length} accounts) (Job #${jobId}) ===`);
+    
+    await updateJobStatus(jobId, 'scraping');
+    
+    let url = '';
+    let input = {};
+
+    if (platform === 'tiktok') {
+        url = `${APIFY_BASE_URL}/acts/clockworks~tiktok-scraper/runs?token=${apiToken}`;
+        // Extract usernames if they pasted URLs
+        const profiles = urls.map(u => {
+            const match = u.match(/@([\w.-]+)/);
+            return match ? match[1] : u;
+        });
+        input = { 
+            profiles: profiles,
+            resultsPerPage: 100,
+            profileScrapeSections: ['videos'],
+            profileSorting: 'latest',
+            shouldDownloadVideos: false 
+        };
+    } else if (platform === 'instagram') {
+        url = `${APIFY_BASE_URL}/acts/apify~instagram-scraper/runs?token=${apiToken}`;
+        input = { directUrls: urls, resultsType: 'posts' };
+    } else if (platform === 'youtube') {
+        url = `${APIFY_BASE_URL}/acts/streamers~youtube-scraper/runs?token=${apiToken}`;
+        input = { startUrls: urls.map(u => ({ url: u })) };
+    }
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+    });
+
+    if (!response.ok) {
+        log.error(`Apify start Account run failed: HTTP ${response.status}`);
+        await updateJobStatus(jobId, 'failed', { errorMessage: `Apify API Error: ${response.status}` });
+        throw new Error(`Apify API error: HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const runId = data.data.id;
+    const datasetId = data.data.defaultDatasetId;
+    
+    log.info(`Apify Account run initiated`, { runId, datasetId });
+    await updateJobStatus(jobId, 'scraping', { apifyRunId: runId, apifyDatasetId: datasetId });
+    
+    return { success: true, runId, datasetId };
+}
+
+/**
  * Sync job state and stream dataset items from Apify to DB.
  * Safe for serverless polling (runs in < 1 second).
  */
@@ -244,4 +299,4 @@ function transformVideo(item) {
     };
 }
 
-module.exports = { startScrape, startUrlScrape, syncJob };
+module.exports = { startScrape, startUrlScrape, startAccountScrape, syncJob };

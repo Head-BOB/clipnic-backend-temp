@@ -146,10 +146,10 @@
                     </div>
                 </div>
 
-                <div class="metrics-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 20px;">
+                <div class="metrics-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom: 20px;">
                     <!-- TIKTOK PROFILE SCRAPER -->
                     <div class="card form-card" id="scraper-form" style="margin-bottom: 0;">
-                        <h3>TikTok Profile Scrape</h3>
+                        <h3>TikTok Username Scrape</h3>
                         <div class="form-row" style="flex-direction: column; align-items: flex-start; gap: 10px;">
                             <div class="form-group" style="width: 100%;">
                                 <label>TikTok Username(s)</label>
@@ -171,13 +171,41 @@
                         </div>
                     </div>
 
-                    <!-- MULTI-PLATFORM URL SCRAPER -->
-                    <div class="card form-card" id="url-scraper-form" style="margin-bottom: 0;">
-                        <h3>Multi-Platform URL Scrape</h3>
+                    <!-- MULTI-PLATFORM ACCOUNT SCRAPER -->
+                    <div class="card form-card" id="account-scraper-form" style="margin-bottom: 0;">
+                        <h3>Multi-Platform Account Scrape</h3>
                         <div class="form-row" style="flex-direction: column; align-items: flex-start; gap: 10px;">
                             <div class="form-group" style="width: 100%;">
-                                <label>Direct URLs (TikTok, Instagram, YouTube)</label>
-                                <textarea id="input-urls" placeholder="https://tiktok.com/...&#10;https://instagram.com/reels/...&#10;https://youtube.com/shorts/..." rows="3" style="resize: vertical; width: 100%; font-family: monospace;"></textarea>
+                                <label>Direct ACCOUNT Profile URLs (No Video Links!)</label>
+                                <textarea id="input-accounts" placeholder="https://tiktok.com/@user&#10;https://instagram.com/user/&#10;https://youtube.com/@channel" rows="1" style="resize: vertical; width: 100%; font-family: monospace;"></textarea>
+                            </div>
+                            <div class="form-row" style="width: 100%;">
+                                <div class="form-group">
+                                    <label>Videos After</label>
+                                    <input type="date" id="account-input-date">
+                                </div>
+                                <div class="form-group">
+                                    <label>Min Views</label>
+                                    <input type="number" id="account-min-views" value="1000" min="0">
+                                </div>
+                                <div class="form-group">
+                                    <label>CPM ($)</label>
+                                    <input type="number" id="account-input-cpm" value="4" min="0.01" step="0.01" style="width: 70px;">
+                                </div>
+                                <div class="form-group btn-align">
+                                    <button class="btn btn-primary" id="btn-account-scrape" onclick="startAccountScrape()" style="background-color: #8b5cf6;">Scrape Accounts</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MULTI-PLATFORM URL SCRAPER -->
+                    <div class="card form-card" id="url-scraper-form" style="margin-bottom: 0;">
+                        <h3>Direct Video Links Only</h3>
+                        <div class="form-row" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+                            <div class="form-group" style="width: 100%;">
+                                <label>Direct VIDEO URLs (TikTok, Insta, YT)</label>
+                                <textarea id="input-urls" placeholder="https://tiktok.com/.../video/...&#10;https://instagram.com/reel/...&#10;https://youtube.com/watch?v=..." rows="3" style="resize: vertical; width: 100%; font-family: monospace;"></textarea>
                             </div>
                             <div class="form-row" style="width: 100%; justify-content: flex-end;">
                                 <div class="form-group">

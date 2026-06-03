@@ -100,7 +100,7 @@ async function createTables() {
         );
 
         ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS apify_synced_count INTEGER DEFAULT 0;
-
+        ALTER TABLE scrape_jobs ADD COLUMN IF NOT EXISTS min_views INTEGER DEFAULT 1000;
 
         CREATE TABLE IF NOT EXISTS videos (
             id SERIAL PRIMARY KEY,
@@ -140,11 +140,11 @@ async function createTables() {
 
 // ---- Scrape Jobs ----
 
-async function createJob(username, afterDate, cpmRate) {
-    log.info(`Creating scrape job: username=${username}, afterDate=${afterDate}, cpmRate=${cpmRate}`);
+async function createJob(username, afterDate, cpmRate, minViews = 1000) {
+    log.info(`Creating scrape job: username=${username}, afterDate=${afterDate}, cpmRate=${cpmRate}, minViews=${minViews}`);
     const result = await dbQuery(
-        `INSERT INTO scrape_jobs (username, after_date, cpm_rate, status) VALUES ($1, $2, $3, 'pending') RETURNING id`,
-        [username, afterDate, cpmRate]
+        `INSERT INTO scrape_jobs (username, after_date, cpm_rate, min_views, status) VALUES ($1, $2, $3, $4, 'pending') RETURNING id`,
+        [username, afterDate, cpmRate, minViews]
     );
     const jobId = result.rows[0].id;
     log.info(`Scrape job created with ID: ${jobId}`);
@@ -194,13 +194,23 @@ async function insertVideos(jobId, videos) {
     try {
         await client.query('BEGIN');
 
-        // Check if this job is for external URLs (which are manually curated and should be auto-approved)
-        const jobResult = await client.query('SELECT username FROM scrape_jobs WHERE id = $1', [jobId]);
-        const isExternal = jobResult.rows.length > 0 && jobResult.rows[0].username.startsWith('External URLs');
-        const defaultStatus = isExternal ? 'approved' : 'pending';
+        // Get job data for min_views check
+        const jobResult = await client.query('SELECT username, min_views FROM scrape_jobs WHERE id = $1', [jobId]);
+        const jobData = jobResult.rows.length > 0 ? jobResult.rows[0] : { username: '', min_views: 1000 };
+        
+        const isExternalUrlJob = jobData.username.startsWith('External URLs');
+        const defaultStatus = isExternalUrlJob ? 'approved' : 'pending';
 
         for (const v of videos) {
-            const isEligible = (v.playCount || 0) >= 1000;
+            const playCount = v.playCount || 0;
+            const isEligible = playCount >= 1000;
+            
+            // Auto-reject logic based on job's min_views
+            let finalStatus = defaultStatus;
+            if (!isExternalUrlJob && playCount < jobData.min_views) {
+                finalStatus = 'rejected';
+            }
+
             const result = await client.query(
                 `INSERT INTO videos (
                     job_id, tiktok_id, web_video_url, description, play_count,
@@ -212,11 +222,11 @@ async function insertVideos(jobId, videos) {
                 ON CONFLICT (job_id, tiktok_id) DO NOTHING`,
                 [
                     jobId, v.id || '', v.webVideoUrl || '', (v.text || '').substring(0, 500),
-                    v.playCount || 0, v.diggCount || 0, v.shareCount || 0,
+                    playCount, v.diggCount || 0, v.shareCount || 0,
                     v.commentCount || 0, v.collectCount || 0, v.duration || 0,
                     v.coverUrl || '', v.createTimeISO || '',
                     v.authorName || '', v.authorNickname || '',
-                    v.authorAvatar || '', v.authorFans || 0, isEligible, defaultStatus
+                    v.authorAvatar || '', v.authorFans || 0, isEligible, finalStatus
                 ]
             );
             if (result.rowCount > 0) inserted++;

@@ -36,6 +36,10 @@ const API = {
         return this.post('/api/scrape/urls', { urls, cpmRate });
     },
 
+    startAccountScrape(urls, cpmRate, afterDate, minViews) {
+        return this.post('/api/scrape/accounts', { urls, cpmRate, afterDate, minViews });
+    },
+
     getJobStatus(jobId) {
         return this.get(`/api/scrape/${jobId}/status`);
     },
