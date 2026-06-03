@@ -100,7 +100,7 @@
                     <button class="btn btn-primary" onclick="runSystemAudit()">Run Audit</button>
                 </div>
 
-                <div class="metrics-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 20px;">
+                <div class="metrics-grid" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom: 20px;">
                     <div class="metric-card" style="border: 1px solid #f43f5e;">
                         <div class="metric-label" style="color: #f43f5e; font-weight:bold;">False Negatives (>1k views, but NOT approved)</div>
                         <div class="metric-value" id="audit-fn-count">0</div>
@@ -108,6 +108,10 @@
                     <div class="metric-card" style="border: 1px solid #f97316;">
                         <div class="metric-label" style="color: #f97316; font-weight:bold;">False Positives (<1k views, but ARE approved)</div>
                         <div class="metric-value" id="audit-fp-count">0</div>
+                    </div>
+                    <div class="metric-card" style="border: 1px solid #8b5cf6;">
+                        <div class="metric-label" style="color: #8b5cf6; font-weight:bold;">Duplicates (Same URL Multiple Times)</div>
+                        <div class="metric-value" id="audit-dup-count">0</div>
                     </div>
                 </div>
 
@@ -122,6 +126,13 @@
                     <h3>False Positives (Must Reject)</h3>
                     <div class="video-list" id="audit-fp-list">
                         <div class="empty-state"><p>Run audit to detect false positives.</p></div>
+                    </div>
+                </div>
+
+                <div class="video-list-container" style="margin-top: 30px;">
+                    <h3>Duplicates (Delete Extras)</h3>
+                    <div class="video-list" id="audit-dup-list">
+                        <div class="empty-state"><p>Run audit to detect duplicates.</p></div>
                     </div>
                 </div>
             </section>

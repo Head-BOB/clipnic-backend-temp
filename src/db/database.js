@@ -349,10 +349,31 @@ async function getSystemAuditAnomalies() {
         ORDER BY v.play_count DESC
     `);
     
+    // Duplicates: URL appears more than once
+    const duplicates = await dbQuery(`
+        SELECT v.*, j.username, j.cpm_rate 
+        FROM videos v
+        JOIN scrape_jobs j ON v.job_id = j.id
+        WHERE v.web_video_url IN (
+            SELECT web_video_url
+            FROM videos
+            WHERE web_video_url != ''
+            GROUP BY web_video_url
+            HAVING COUNT(*) > 1
+        )
+        ORDER BY v.web_video_url, v.created_at
+    `);
+
     return {
         falseNegatives: falseNegatives.rows,
-        falsePositives: falsePositives.rows
+        falsePositives: falsePositives.rows,
+        duplicates: duplicates.rows
     };
+}
+
+async function deleteVideo(videoId) {
+    const result = await dbQuery('DELETE FROM videos WHERE id = $1 RETURNING id', [videoId]);
+    return result.rowCount > 0;
 }
 
 function getPool() { return pool; }
@@ -363,5 +384,5 @@ module.exports = {
     deleteJob,
     insertVideos, getVideosByJob, updateVideoReview,
     getJobMetrics, getGlobalMetrics, getAllVideosForExport, getAllGlobalApprovedVideos,
-    getSystemAuditAnomalies
+    getSystemAuditAnomalies, deleteVideo
 };

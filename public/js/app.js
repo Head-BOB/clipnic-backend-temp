@@ -711,20 +711,23 @@ async function runSystemAudit() {
     showToast('Running System Audit...', 'info');
     document.getElementById('audit-fn-list').innerHTML = '<div class="empty-state"><p>Scanning...</p></div>';
     document.getElementById('audit-fp-list').innerHTML = '<div class="empty-state"><p>Scanning...</p></div>';
+    document.getElementById('audit-dup-list').innerHTML = '<div class="empty-state"><p>Scanning...</p></div>';
 
     try {
         const data = await API.getAuditAnomalies();
         
         document.getElementById('audit-fn-count').innerText = data.falseNegatives.length;
         document.getElementById('audit-fp-count').innerText = data.falsePositives.length;
+        document.getElementById('audit-dup-count').innerText = data.duplicates?.length || 0;
 
         renderAuditList(data.falseNegatives, 'audit-fn-list', 'approved');
         renderAuditList(data.falsePositives, 'audit-fp-list', 'rejected');
+        renderAuditList(data.duplicates || [], 'audit-dup-list', 'delete');
         
-        if(data.falseNegatives.length === 0 && data.falsePositives.length === 0) {
+        if(data.falseNegatives.length === 0 && data.falsePositives.length === 0 && (!data.duplicates || data.duplicates.length === 0)) {
             showToast('Audit clean! No review mistakes found.', 'success');
         } else {
-            showToast(`Found ${data.falseNegatives.length + data.falsePositives.length} anomalies.`, 'warning');
+            showToast(`Found anomalies: ${data.falseNegatives.length} FN, ${data.falsePositives.length} FP, ${data.duplicates?.length || 0} Duplicates.`, 'warning');
         }
     } catch (err) {
         showToast('Audit failed: ' + err.message, 'error');
@@ -740,13 +743,28 @@ function renderAuditList(videos, containerId, fixAction) {
 
     container.innerHTML = videos.map(v => {
         const profit = v.is_eligible ? (Number(v.play_count) / 1000) * v.cpm_rate : 0;
-        const btnClass = fixAction === 'approved' ? 'btn-primary' : 'btn-outline';
-        const btnLabel = fixAction === 'approved' ? 'Approve Now' : 'Reject Now';
+        
+        let btnClass = 'btn-outline';
+        let btnLabel = 'Fix';
+        let onClickAction = `auditReviewVideo(${v.id}, 'approved')`;
+
+        if (fixAction === 'approved') {
+            btnClass = 'btn-primary';
+            btnLabel = 'Approve Now';
+            onClickAction = `auditReviewVideo(${v.id}, 'approved')`;
+        } else if (fixAction === 'rejected') {
+            btnLabel = 'Reject Now';
+            onClickAction = `auditReviewVideo(${v.id}, 'rejected')`;
+        } else if (fixAction === 'delete') {
+            btnClass = 'btn-outline';
+            btnLabel = 'Delete Duplicate';
+            onClickAction = `auditDeleteVideo(${v.id})`;
+        }
 
         return `
             <div class="video-card">
                 <div class="video-meta">
-                    <span class="video-date">@${v.username}</span>
+                    <span class="video-date">@${v.username} (ID: ${v.id})</span>
                     <span class="video-views">${fmtNum(v.play_count)} views</span>
                     <span class="video-profit">$${profit.toFixed(2)}</span>
                     <span class="badge badge-${v.is_eligible ? 'eligible' : 'ineligible'}">
@@ -758,7 +776,7 @@ function renderAuditList(videos, containerId, fixAction) {
                 </div>
                 <div class="video-actions">
                     <a href="${v.web_video_url}" target="_blank" class="btn btn-outline btn-sm">View Post</a>
-                    <button class="btn ${btnClass} btn-sm" onclick="auditReviewVideo(${v.id}, '${fixAction}')">${btnLabel}</button>
+                    <button class="btn ${btnClass} btn-sm" onclick="${onClickAction}">${btnLabel}</button>
                 </div>
             </div>
         `;
@@ -772,6 +790,17 @@ async function auditReviewVideo(videoId, status) {
         await runSystemAudit(); // Refresh the lists!
     } catch (err) {
         showToast(`Fix failed: ${err.message}`, 'error');
+    }
+}
+
+async function auditDeleteVideo(videoId) {
+    if (!confirm('Are you sure you want to permanently delete this video?')) return;
+    try {
+        await API.deleteVideo(videoId);
+        showToast('Video deleted.', 'success');
+        await runSystemAudit();
+    } catch (err) {
+        showToast(`Delete failed: ${err.message}`, 'error');
     }
 }
 

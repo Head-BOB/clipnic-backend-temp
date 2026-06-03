@@ -56,6 +56,10 @@ const API = {
         return this.get(`/api/videos/${jobId}?page=${page}&limit=${limit}&filter=${filter}`);
     },
 
+    deleteVideo(videoId) {
+        return this.del(`/api/videos/${videoId}`);
+    },
+
     reviewVideo(videoId, status, notes = '') {
         return this.post(`/api/videos/${videoId}/review`, { status, notes });
     },

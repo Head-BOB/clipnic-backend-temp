@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { createModuleLogger } = require('../logger');
-const { getVideosByJob, updateVideoReview, getJobMetrics, getJob, getAllVideosForExport } = require('../db/database');
+const { getVideosByJob, updateVideoReview, getJobMetrics, getJob, getAllVideosForExport, deleteVideo } = require('../db/database');
 const { calculateVideoProfit } = require('../analytics/calculator');
 const { generateReport } = require('../analytics/pdf-export');
 
@@ -43,6 +43,21 @@ router.post('/videos/:videoId/review', async (req, res) => {
         res.json({ success: true, videoId, status });
     } catch (err) {
         log.error(`POST /videos/review error: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.delete('/videos/:videoId', async (req, res) => {
+    try {
+        const videoId = parseInt(req.params.videoId);
+        log.info(`Deleting video ${videoId}`);
+        const success = await deleteVideo(videoId);
+        if (!success) {
+            return res.status(404).json({ error: 'Video not found' });
+        }
+        res.json({ success: true, videoId });
+    } catch (err) {
+        log.error(`DELETE /videos error: ${err.message}`);
         res.status(500).json({ error: err.message });
     }
 });
