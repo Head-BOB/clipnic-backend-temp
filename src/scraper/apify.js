@@ -73,7 +73,7 @@ async function startUrlScrape(platform, urls, jobId, apiToken) {
         url = `${APIFY_BASE_URL}/acts/apify~instagram-scraper/runs?token=${apiToken}`;
         input = { directUrls: urls, resultsType: 'details' };
     } else if (platform === 'youtube') {
-        url = `${APIFY_BASE_URL}/acts/stream-saver~youtube-scraper/runs?token=${apiToken}`;
+        url = `${APIFY_BASE_URL}/acts/streamers~youtube-scraper/runs?token=${apiToken}`;
         input = { startUrls: urls.map(u => ({ url: u })) };
     }
 
