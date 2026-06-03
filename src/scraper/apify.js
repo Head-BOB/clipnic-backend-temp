@@ -193,12 +193,16 @@ async function syncJob(job, apiToken) {
             if (items.length > 0) {
                 log.info(`Fetched ${items.length} new items from dataset (offset ${offset})`);
                 
-                // Filter by date
+                // Transform first, then filter by date
                 const afterDateTs = new Date(job.after_date).getTime();
-                const filtered = items.filter(item => {
-                    if (item.errorCode) return false;
-                    return new Date(item.createTimeISO).getTime() >= afterDateTs;
-                }).map(transformVideo);
+                const transformed = items.map(transformVideo).filter(v => v !== null);
+                
+                const filtered = transformed.filter(v => {
+                    const videoDateTs = new Date(v.createTimeISO).getTime();
+                    // If we cannot parse the date, assume it's valid to be safe
+                    if (isNaN(videoDateTs)) return true;
+                    return videoDateTs >= afterDateTs;
+                });
 
                 if (filtered.length > 0) {
                     newVideosInserted = await insertVideos(job.id, filtered);
