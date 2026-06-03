@@ -160,6 +160,7 @@ function updateStatusUI(data) {
 
     title.textContent = statusMap[job.status] || job.status;
 
+    if (job.status === 'completed') {
         document.getElementById('status-spinner').classList.add('hidden');
         detail.textContent = metrics
             ? `${fmtNum(metrics.total_views)} total views · ${fmtNum(metrics.eligible_views)} eligible · $${metrics.gross_profit.toFixed(2)} gross profit`
