@@ -56,6 +56,50 @@ async function startScrape(username, jobId, apiToken) {
 }
 
 /**
+ * Start an Apify run for direct URLs (multi-platform)
+ */
+async function startUrlScrape(platform, urls, jobId, apiToken) {
+    log.info(`=== STARTING APIFY URL RUN: ${platform} (${urls.length} urls) (Job #${jobId}) ===`);
+    
+    await updateJobStatus(jobId, 'scraping');
+    
+    let url = '';
+    let input = {};
+
+    if (platform === 'tiktok') {
+        url = `${APIFY_BASE_URL}/acts/clockworks~tiktok-scraper/runs?token=${apiToken}`;
+        input = { postURLs: urls, shouldDownloadVideos: false };
+    } else if (platform === 'instagram') {
+        url = `${APIFY_BASE_URL}/acts/apify~instagram-scraper/runs?token=${apiToken}`;
+        input = { directUrls: urls, resultsType: 'details' };
+    } else if (platform === 'youtube') {
+        url = `${APIFY_BASE_URL}/acts/stream-saver~youtube-scraper/runs?token=${apiToken}`;
+        input = { startUrls: urls.map(u => ({ url: u })) };
+    }
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+    });
+
+    if (!response.ok) {
+        log.error(`Apify start URL run failed: HTTP ${response.status}`);
+        await updateJobStatus(jobId, 'failed', { errorMessage: `Apify API Error: ${response.status}` });
+        throw new Error(`Apify API error: HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const runId = data.data.id;
+    const datasetId = data.data.defaultDatasetId;
+    
+    log.info(`Apify URL run initiated`, { runId, datasetId });
+    await updateJobStatus(jobId, 'scraping', { apifyRunId: runId, apifyDatasetId: datasetId });
+    
+    return { success: true, runId, datasetId };
+}
+
+/**
  * Sync job state and stream dataset items from Apify to DB.
  * Safe for serverless polling (runs in < 1 second).
  */
@@ -129,23 +173,75 @@ async function syncJob(job, apiToken) {
 }
 
 function transformVideo(item) {
+    // TIKTOK (clockworks)
+    if (item.webVideoUrl || item.videoMeta) {
+        return {
+            id: item.id || '',
+            webVideoUrl: item.webVideoUrl || '',
+            text: (item.text || '').substring(0, 500),
+            playCount: item.playCount || 0,
+            diggCount: item.diggCount || 0,
+            shareCount: item.shareCount || 0,
+            commentCount: item.commentCount || 0,
+            collectCount: item.collectCount || 0,
+            duration: item.videoMeta?.duration || 0,
+            coverUrl: item.videoMeta?.coverUrl || '',
+            createTimeISO: item.createTimeISO || '',
+            authorName: item.authorMeta?.name || '',
+            authorNickname: item.authorMeta?.nickName || '',
+            authorAvatar: item.authorMeta?.avatar || '',
+            authorFans: item.authorMeta?.fans || 0
+        };
+    }
+
+    // INSTAGRAM (apify~instagram-scraper)
+    if (item.url && item.url.includes('instagram.com')) {
+        return {
+            id: item.id || item.shortCode || String(Math.random()),
+            webVideoUrl: item.url,
+            text: (item.caption || '').substring(0, 500),
+            playCount: item.videoViewCount || item.viewCount || 0,
+            diggCount: item.likesCount || 0,
+            shareCount: 0,
+            commentCount: item.commentsCount || 0,
+            collectCount: 0, duration: 0, coverUrl: item.displayUrl || '',
+            createTimeISO: item.timestamp || new Date().toISOString(),
+            authorName: item.ownerUsername || item.ownerFullName || '',
+            authorNickname: '', authorAvatar: '', authorFans: 0
+        };
+    }
+
+    // YOUTUBE
+    if (item.url && item.url.includes('youtube.com')) {
+        return {
+            id: item.id || String(Math.random()),
+            webVideoUrl: item.url,
+            text: (item.title || item.text || '').substring(0, 500),
+            playCount: item.viewCount || item.views || 0,
+            diggCount: item.likes || item.likesCount || 0,
+            shareCount: 0,
+            commentCount: item.comments || item.commentsCount || 0,
+            collectCount: 0, duration: 0, coverUrl: item.thumbnailUrl || '',
+            createTimeISO: item.date || item.uploadDate || new Date().toISOString(),
+            authorName: item.channelName || item.uploader || '',
+            authorNickname: '', authorAvatar: '', authorFans: 0
+        };
+    }
+
+    // FALLBACK
     return {
-        id: item.id || '',
-        webVideoUrl: item.webVideoUrl || '',
-        text: (item.text || '').substring(0, 500),
-        playCount: item.playCount || 0,
-        diggCount: item.diggCount || 0,
+        id: item.id || String(Math.random()),
+        webVideoUrl: item.url || item.webVideoUrl || '',
+        text: (item.title || item.caption || item.text || '').substring(0, 500),
+        playCount: item.playCount || item.viewCount || item.videoViewCount || item.views || 0,
+        diggCount: item.likesCount || item.diggCount || item.likes || 0,
         shareCount: item.shareCount || 0,
-        commentCount: item.commentCount || 0,
-        collectCount: item.collectCount || 0,
-        duration: item.videoMeta?.duration || 0,
-        coverUrl: item.videoMeta?.coverUrl || '',
-        createTimeISO: item.createTimeISO || '',
-        authorName: item.authorMeta?.name || '',
-        authorNickname: item.authorMeta?.nickName || '',
-        authorAvatar: item.authorMeta?.avatar || '',
-        authorFans: item.authorMeta?.fans || 0
+        commentCount: item.commentsCount || item.commentCount || item.comments || 0,
+        collectCount: 0, duration: 0, coverUrl: '',
+        createTimeISO: new Date().toISOString(),
+        authorName: item.ownerUsername || item.channelName || item.authorMeta?.name || '',
+        authorNickname: '', authorAvatar: '', authorFans: 0
     };
 }
 
-module.exports = { startScrape, syncJob };
+module.exports = { startScrape, startUrlScrape, syncJob };

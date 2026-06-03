@@ -118,7 +118,50 @@ function waitForJobCompletion(jobId) {
                 // Don't resolve on temporary poll error, let it retry
             }
         }, 3000);
+        }, 3000);
     });
+}
+
+async function startUrlScrape() {
+    const urls = document.getElementById('input-urls').value;
+    const cpm = document.getElementById('url-input-cpm').value;
+    const btn = document.getElementById('btn-url-scrape');
+
+    if (!urls) return showToast('Please enter URLs', 'error');
+
+    btn.disabled = true;
+    showToast('Starting multi-platform scraper...', 'info');
+
+    document.getElementById('job-status').classList.remove('hidden');
+    document.getElementById('status-spinner').classList.remove('hidden');
+    document.getElementById('status-title').textContent = 'Submitting URLs...';
+    document.getElementById('status-detail').textContent = 'Waiting for API...';
+
+    try {
+        const res = await API.startUrlScrape(urls, parseFloat(cpm));
+        showToast(res.message, 'success');
+        
+        document.getElementById('input-urls').value = '';
+        
+        // Wait for ALL created jobs sequentially
+        for (const jobId of res.jobsCreated) {
+            document.getElementById('status-title').textContent = `Processing Job #${jobId}...`;
+            await waitForJobCompletion(jobId);
+        }
+
+        document.getElementById('status-title').textContent = `All URL Jobs Complete!`;
+        document.getElementById('status-detail').textContent = `Processed ${res.jobsCreated.length} parallel jobs.`;
+        document.getElementById('status-spinner').classList.add('hidden');
+        
+    } catch (err) {
+        showToast(err.message, 'error');
+        document.getElementById('status-title').textContent = 'Error';
+        document.getElementById('status-detail').textContent = err.message;
+        document.getElementById('status-spinner').classList.add('hidden');
+    } finally {
+        btn.disabled = false;
+        loadPastJobs(); // refresh the UI list
+    }
 }
 
 function updateStatusUI(data) {

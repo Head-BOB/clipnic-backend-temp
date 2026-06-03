@@ -130,27 +130,53 @@
             <section class="tab-content active" id="content-scraper">
                 <div class="page-header">
                     <div>
-                        <h1>Auto Scrap</h1>
-                        <p class="subtitle">Extract TikTok videos directly into the database.</p>
+                        <h1>Auto Scrap & External Links</h1>
+                        <p class="subtitle">Extract TikTok videos directly into the database or paste multi-platform URLs.</p>
                     </div>
                 </div>
 
-                <div class="card form-card" id="scraper-form">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>TikTok Username(s)</label>
-                            <textarea id="input-username" placeholder="@user1, @user2..." rows="1" style="resize: vertical;"></textarea>
+                <div class="metrics-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 20px;">
+                    <!-- TIKTOK PROFILE SCRAPER -->
+                    <div class="card form-card" id="scraper-form" style="margin-bottom: 0;">
+                        <h3>TikTok Profile Scrape</h3>
+                        <div class="form-row" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+                            <div class="form-group" style="width: 100%;">
+                                <label>TikTok Username(s)</label>
+                                <textarea id="input-username" placeholder="@user1, @user2..." rows="1" style="resize: vertical; width: 100%;"></textarea>
+                            </div>
+                            <div class="form-row" style="width: 100%;">
+                                <div class="form-group">
+                                    <label>Videos After</label>
+                                    <input type="date" id="input-date">
+                                </div>
+                                <div class="form-group">
+                                    <label>CPM Rate ($)</label>
+                                    <input type="number" id="input-cpm" value="4" min="0.01" step="0.01">
+                                </div>
+                                <div class="form-group btn-align">
+                                    <button class="btn btn-primary" id="btn-scrape" onclick="startScrape()">Start Scraping</button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label>Videos After</label>
-                            <input type="date" id="input-date">
-                        </div>
-                        <div class="form-group">
-                            <label>CPM Rate ($)</label>
-                            <input type="number" id="input-cpm" value="4" min="0.01" step="0.01">
-                        </div>
-                        <div class="form-group btn-align">
-                            <button class="btn btn-primary" id="btn-scrape" onclick="startScrape()">Start Scraping</button>
+                    </div>
+
+                    <!-- MULTI-PLATFORM URL SCRAPER -->
+                    <div class="card form-card" id="url-scraper-form" style="margin-bottom: 0;">
+                        <h3>Multi-Platform URL Scrape</h3>
+                        <div class="form-row" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+                            <div class="form-group" style="width: 100%;">
+                                <label>Direct URLs (TikTok, Instagram, YouTube)</label>
+                                <textarea id="input-urls" placeholder="https://tiktok.com/...&#10;https://instagram.com/reels/...&#10;https://youtube.com/shorts/..." rows="3" style="resize: vertical; width: 100%; font-family: monospace;"></textarea>
+                            </div>
+                            <div class="form-row" style="width: 100%; justify-content: flex-end;">
+                                <div class="form-group">
+                                    <label>CPM Rate ($)</label>
+                                    <input type="number" id="url-input-cpm" value="4" min="0.01" step="0.01">
+                                </div>
+                                <div class="form-group btn-align">
+                                    <button class="btn btn-accent" id="btn-url-scrape" onclick="startUrlScrape()">Scrape URLs</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
