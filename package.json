@@ -1,0 +1,26 @@
+{
+  "name": "clipnic-campaign-scraper",
+  "version": "1.0.0",
+  "description": "Clipnic.com TikTok Campaign Video Scraper & Admin Dashboard",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "keywords": [
+    "clipnic",
+    "tiktok",
+    "scraper",
+    "campaign",
+    "analytics"
+  ],
+  "author": "Clipnic Team",
+  "license": "PRIVATE",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pdfkit": "^0.18.0",
+    "pg": "^8.21.0",
+    "winston": "^3.17.0"
+  }
+}

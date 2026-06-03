@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clipnic — Campaign Scraper & Analytics</title>
+    <meta name="description" content="Clipnic.com TikTok Campaign Video Scraper, Analytics Dashboard & Admin Review Panel">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <!-- Ambient background -->
+    <div class="ambient-bg">
+        <div class="ambient-orb orb-1"></div>
+        <div class="ambient-orb orb-2"></div>
+        <div class="ambient-orb orb-3"></div>
+    </div>
+
+    <!-- Header -->
+    <header class="header" id="header">
+        <div class="header-inner">
+            <div class="logo">
+                <span class="logo-icon">▶</span>
+                <span class="logo-text">CLIPNIC</span>
+                <span class="logo-badge">SCRAPER</span>
+            </div>
+            <nav class="tabs" id="nav-tabs">
+                <button class="tab active" data-tab="scraper" id="tab-scraper">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    Scraper
+                </button>
+                <button class="tab" data-tab="admin" id="tab-admin">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                    Admin Review
+                </button>
+                <button class="tab" data-tab="logs" id="tab-logs">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                    Logs
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Toast container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Tab: Scraper -->
+    <main class="content">
+        <section class="tab-content active" id="content-scraper">
+            <div class="section-header">
+                <h1>TikTok Profile Scraper</h1>
+                <p>Enter a TikTok username and date to scrape all videos posted after that date.</p>
+            </div>
+
+            <div class="scraper-form glass-card" id="scraper-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="input-username">TikTok Username</label>
+                        <div class="input-with-prefix">
+                            <span class="input-prefix">@</span>
+                            <input type="text" id="input-username" placeholder="username" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="input-date">Videos After</label>
+                        <input type="date" id="input-date">
+                    </div>
+                    <div class="form-group">
+                        <label for="input-cpm">CPM Rate ($)</label>
+                        <input type="number" id="input-cpm" value="4" min="0.01" step="0.01">
+                    </div>
+                </div>
+                <button class="btn btn-primary btn-lg" id="btn-scrape" onclick="startScrape()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    Start Scraping
+                </button>
+            </div>
+
+            <!-- Active Job Status -->
+            <div class="job-status glass-card hidden" id="job-status">
+                <div class="status-header">
+                    <div class="status-indicator" id="status-indicator">
+                        <div class="pulse"></div>
+                    </div>
+                    <div>
+                        <h3 id="status-title">Scraping...</h3>
+                        <p id="status-detail" class="text-muted">Initializing...</p>
+                    </div>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+            </div>
+
+            <!-- Past Jobs -->
+            <div class="past-jobs" id="past-jobs-section">
+                <h2>Previous Scrape Jobs</h2>
+                <div class="jobs-list" id="jobs-list"></div>
+            </div>
+        </section>
+
+        <!-- Tab: Admin Review -->
+        <section class="tab-content" id="content-admin">
+            <div class="section-header">
+                <h1>Admin Review Panel</h1>
+                <p>Review scraped videos, approve or reject them, and track earnings.</p>
+            </div>
+
+            <!-- Job Selector -->
+            <div class="glass-card admin-controls">
+                <div class="form-row">
+                    <div class="form-group" style="flex:2">
+                        <label for="admin-job-select">Select Scrape Job</label>
+                        <select id="admin-job-select" onchange="loadJobForReview()">
+                            <option value="">— Select a job —</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label for="admin-filter">Filter</label>
+                        <select id="admin-filter" onchange="loadJobForReview()">
+                            <option value="all">All Videos</option>
+                            <option value="eligible">Eligible (≥1K)</option>
+                            <option value="ineligible">Ineligible (<1K)</option>
+                            <option value="pending">Pending Review</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                        </select>
+                    </div>
+                    <div class="form-group btn-group-vertical">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-accent" id="btn-export-pdf" onclick="exportPDF()" disabled>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                            Export PDF
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metrics Dashboard -->
+            <div class="metrics-grid hidden" id="metrics-grid">
+                <div class="metric-card" id="metric-total-views">
+                    <div class="metric-icon">👁</div>
+                    <div class="metric-value" id="mv-total-views">0</div>
+                    <div class="metric-label">Total Views</div>
+                </div>
+                <div class="metric-card highlight" id="metric-eligible-views">
+                    <div class="metric-icon">✅</div>
+                    <div class="metric-value" id="mv-eligible-views">0</div>
+                    <div class="metric-label">Eligible Views</div>
+                </div>
+                <div class="metric-card accent" id="metric-profit">
+                    <div class="metric-icon">💰</div>
+                    <div class="metric-value" id="mv-profit">$0</div>
+                    <div class="metric-label">Gross Profit</div>
+                </div>
+                <div class="metric-card success" id="metric-approved-profit">
+                    <div class="metric-icon">🏦</div>
+                    <div class="metric-value" id="mv-approved-profit">$0</div>
+                    <div class="metric-label">Approved Profit</div>
+                </div>
+                <div class="metric-card small" id="metric-approved">
+                    <div class="metric-value green" id="mv-approved">0</div>
+                    <div class="metric-label">Approved</div>
+                </div>
+                <div class="metric-card small" id="metric-rejected">
+                    <div class="metric-value red" id="mv-rejected">0</div>
+                    <div class="metric-label">Rejected</div>
+                </div>
+                <div class="metric-card small" id="metric-pending">
+                    <div class="metric-value yellow" id="mv-pending">0</div>
+                    <div class="metric-label">Pending</div>
+                </div>
+            </div>
+
+            <!-- Video List -->
+            <div class="video-list-container hidden" id="video-list-container">
+                <div class="video-list-header">
+                    <span id="video-count-label">0 videos</span>
+                    <div class="pagination" id="pagination-top"></div>
+                </div>
+                <div class="video-list" id="video-list"></div>
+                <div class="pagination-footer" id="pagination-bottom"></div>
+            </div>
+        </section>
+
+        <!-- Tab: Logs -->
+        <section class="tab-content" id="content-logs">
+            <div class="section-header">
+                <h1>System Logs</h1>
+                <p>Real-time application and scraper logs for debugging.</p>
+            </div>
+            <div class="glass-card log-controls">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="log-source">Source</label>
+                        <select id="log-source" onchange="refreshLogs()">
+                            <option value="app">Application</option>
+                            <option value="scraper">Scraper</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="log-level">Level</label>
+                        <select id="log-level" onchange="refreshLogs()">
+                            <option value="all">All</option>
+                            <option value="info">INFO</option>
+                            <option value="warn">WARN</option>
+                            <option value="error">ERROR</option>
+                            <option value="debug">DEBUG</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="log-lines">Lines</label>
+                        <select id="log-lines" onchange="refreshLogs()">
+                            <option value="50">50</option>
+                            <option value="100" selected>100</option>
+                            <option value="200">200</option>
+                            <option value="500">500</option>
+                        </select>
+                    </div>
+                    <div class="form-group btn-group-vertical">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-secondary" onclick="refreshLogs()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="form-group">
+                        <label class="toggle-label">
+                            <input type="checkbox" id="log-auto-refresh" checked>
+                            Auto-refresh (5s)
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="log-viewer glass-card" id="log-viewer">
+                <pre id="log-output">Loading logs...</pre>
+            </div>
+        </section>
+    </main>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
